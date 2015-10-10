@@ -19,11 +19,11 @@ srcdir ::= src/
 frmdir ::= $(srcdir)frames/
 
 # Coco/R URLs
-prefix ::= http://ssw.jku.at/Coco/					# Website URL prefix
-manual ::= $(prefix)Doc/UserManual.pdf      # User manual URL
-cocurl ::= $(prefix)CPP/CocoSourcesCPP.zip  # Coco/R zip remote URL
-coczip ::= $(cocdir)$(notdir $(cocurl))     # Coco/R zip local path
-cocoex ::= $(bindir)coco                    # Coco/R executable
+prefix ::= http://ssw.jku.at/Coco/
+manual ::= $(prefix)Doc/UserManual.pdf
+cocurl ::= $(prefix)CPP/CocoSourcesCPP.zip
+coczip ::= $(cocdir)$(notdir $(cocurl))
+cocoex ::= $(bindir)coco
 
 # ATG namespace (TBD)
 namesp ::= Namespace
@@ -57,7 +57,7 @@ doc: $(docdir)
 coco: $(cocdir) | $(frmdir) $(bindir)
 	wget -NP $< $(cocurl)                   # Pull Coco/R zip
 	unzip -qud $< $(coczip) *.cpp *.h       # Extract source
-	unzip -qud $(frmdir) $(coczip) *.frame	# Extract frames
+	unzip -qud $(frmdir) $(coczip) *.frame  # Extract frames
 	$(LINK.cpp) -o $(cocoex) $<*.cpp        # Build Coco/R
 
 # Remove binary, Coco/R, documentation and frame directories
