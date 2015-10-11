@@ -3,8 +3,7 @@
  *
  *  TODO(eginhard):
  *   - handle tabs
- *   - explicit indentation via \
- *   - implicit indentation via (), [], {}, """ """
+ *   - implicit line-joining via (), [], {}, """ """
  *   - integrate into pipeline
  */
 
@@ -36,7 +35,13 @@ int main(int argc, char *argv[]) {
     smatch match;
     regex_match(line, match, rgx);
     const string indent(match[1]);
-    const string suffix(match[2]);
+    string suffix(match[2]);
+
+    while (suffix[suffix.length() - 1] == '\\') {
+      string next_line;
+      getline(infile, next_line);
+      suffix = suffix.substr(0, suffix.length() - 1) + next_line;
+    }
 
     // Add INDENT/DEDENT tokens when indentation changes
     if (indent.length() > stack.back() && suffix[0] != '#') {
