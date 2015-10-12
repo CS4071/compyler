@@ -11,22 +11,22 @@
 #
 
 # Directories
-bindir ::= bin/
-cocdir ::= coco/
-docdir ::= doc/
-gendir ::= gen/
-srcdir ::= src/
-frmdir ::= $(srcdir)frames/
+bindir := bin/
+cocdir := coco/
+docdir := doc/
+gendir := gen/
+srcdir := src/
+frmdir := $(srcdir)frames/
 
 # Coco/R URLs
-prefix ::= http://ssw.jku.at/Coco/
-manual ::= $(prefix)Doc/UserManual.pdf
-cocurl ::= $(prefix)CPP/CocoSourcesCPP.zip
-coczip ::= $(cocdir)$(notdir $(cocurl))
-cocoex ::= $(bindir)coco
+prefix := http\://ssw.jku.at/Coco/
+manual := $(prefix)Doc/UserManual.pdf
+cocurl := $(prefix)CPP/CocoSourcesCPP.zip
+coczip := $(cocdir)$(notdir $(cocurl))
+cocoex := $(bindir)coco
 
 # ATG namespace (TBD)
-namesp ::= Namespace
+namesp := Namespace
 
 # Language standard defaults to c++11; pass STD=gnu for gnu++11
 ifeq ($(STD), gnu)
