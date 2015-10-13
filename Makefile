@@ -23,7 +23,7 @@ prefix := http\://ssw.jku.at/Coco/
 manual := $(prefix)Doc/UserManual.pdf
 cocurl := $(prefix)CPP/CocoSourcesCPP.zip
 coczip := $(cocdir)$(notdir $(cocurl))
-cocoex := $(bindir)coco
+cocexe := $(bindir)coco
 
 # ATG namespace (TBD)
 namesp := Namespace
@@ -47,7 +47,7 @@ doc: $(docdir)
 
 # Create compyler compiler
 # compyler: coco # ...
-# 	$(cocoex) -frames $(frmdir) -o $(gendir) -namespace $(namesp) S(srcdir)/grammar/$(namesp).ATG
+# 	$(cocexe) -frames $(frmdir) -o $(gendir) -namespace $(namesp) S(srcdir)/grammar/$(namesp).ATG
 # 	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
 
 # Pull and build Coco/R source if remote is newer
@@ -55,7 +55,7 @@ coco: $(cocdir) | $(frmdir) $(bindir)
 	wget -NP $< $(cocurl)
 	unzip -qud $< $(coczip) *.cpp *.h
 	unzip -qud $(frmdir) $(coczip) *.frame
-	$(LINK.cpp) -o $(cocoex) $<*.cpp
+	$(LINK.cpp) -o $(cocexe) $<*.cpp
 
 # Remove binary, Coco/R, documentation and frame directories
 clean:
