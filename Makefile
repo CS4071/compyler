@@ -6,7 +6,6 @@
 # TODO(basil-conto):
 #  * Add 'help' target
 #    - Document CL options
-#  * Check Coco/R version
 #  * Prettify?
 #
 
@@ -24,12 +23,25 @@ manual := $(prefix)Doc/UserManual.pdf
 cocurl := $(prefix)CPP/CocoSourcesCPP.zip
 coczip := $(cocdir)$(notdir $(cocurl))
 cocexe := $(bindir)coco
+cocver := Jan 02, 2012
 
 # ATG namespace (TBD)
 namesp := Namespace
 
 # Effectively a ternary conditional operator
 ifflag = $(if $(findstring $(2), $(1)), $(3), $(4))
+
+# Inspect output of coco to determine version
+define checkversion =
+	version="$$($(cocexe) | head -1 | awk -F '[()]' '{print $$2}')"; \
+	if [ "$${version}" != "$(cocver)" ]; then \
+		echo ''; \
+		echo '[ERR] The version of Coco/R has changed!'; \
+		echo "Expected $(cocver), but got $${version}"; \
+		echo ''; \
+		exit 2; \
+	fi
+endef
 
 # Language standard defaults to c++11; pass STD=gnu for gnu++11
 override CXXFLAGS += $(call ifflag, $(STD), gnu, -std=gnu++11, -std=c++11)
@@ -56,6 +68,7 @@ coco: $(cocdir) | $(frmdir) $(bindir)
 	unzip -qud $< $(coczip) *.cpp *.h
 	unzip -qud $(frmdir) $(coczip) *.frame
 	$(LINK.cpp) -o $(cocexe) $<*.cpp
+	@ $(checkversion)
 
 # Remove binary, Coco/R, documentation and frame directories
 clean:
