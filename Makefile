@@ -28,17 +28,14 @@ cocoex := $(bindir)coco
 # ATG namespace (TBD)
 namesp := Namespace
 
+# Effectively a ternary conditional operator
+ifflag = $(if $(findstring $(2), $(1)), $(3), $(4))
+
 # Language standard defaults to c++11; pass STD=gnu for gnu++11
-ifeq ($(STD), gnu)
-	override CXXFLAGS += -std=gnu++11
-else
-	override CXXFLAGS += -std=c++11
-endif
+override CXXFLAGS += $(call ifflag, $(STD), gnu, -std=gnu++11, -std=c++11)
 
 # Enable compilation warnings via WARNINGS=on
-ifeq ($(WARNINGS), on)
-	override CXXFLAGS += -pedantic -Wall
-endif
+override CXXFLAGS += $(call ifflag, $(WARNINGS), on, -pedantic -Wall, -w)
 
 .PHONY: all doc coco clean
 
