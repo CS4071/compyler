@@ -6,8 +6,11 @@
 # TODO(basil-conto):
 #  * Add 'help' target
 #    - Document CL options
-#  * Prettify?
 #
+
+# =========
+# Variables
+# =========
 
 # Directories
 bindir := bin/
@@ -28,6 +31,10 @@ cocver := Jan 02, 2012
 # ATG namespace (TBD)
 namesp := Namespace
 
+# ======
+# Macros
+# ======
+
 # Effectively a ternary conditional operator
 ifflag = $(if $(findstring $(2), $(1)), $(3), $(4))
 
@@ -43,11 +50,19 @@ define checkversion =
 	fi
 endef
 
+# =====
+# Flags
+# =====
+
 # Language standard defaults to c++11; pass STD=gnu for gnu++11
 override CXXFLAGS += $(call ifflag, $(STD), gnu, -std=gnu++11, -std=c++11)
 
 # Enable compilation warnings via WARNINGS=on
 override CXXFLAGS += $(call ifflag, $(WARNINGS), on, -pedantic -Wall, -w)
+
+# =======
+# Recipes
+# =======
 
 .PHONY: all doc coco clean
 
