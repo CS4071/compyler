@@ -52,10 +52,10 @@ doc: $(docdir)
 
 # Pull and build Coco/R source if remote is newer
 coco: $(cocdir) | $(frmdir) $(bindir)
-	wget -NP $< $(cocurl)                   # Pull Coco/R zip
-	unzip -qud $< $(coczip) *.cpp *.h       # Extract source
-	unzip -qud $(frmdir) $(coczip) *.frame  # Extract frames
-	$(LINK.cpp) -o $(cocoex) $<*.cpp        # Build Coco/R
+	wget -NP $< $(cocurl)
+	unzip -qud $< $(coczip) *.cpp *.h
+	unzip -qud $(frmdir) $(coczip) *.frame
+	$(LINK.cpp) -o $(cocoex) $<*.cpp
 
 # Remove binary, Coco/R, documentation and frame directories
 clean:
