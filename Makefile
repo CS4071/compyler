@@ -28,8 +28,8 @@ coczip := $(cocdir)$(notdir $(cocurl))
 cocexe := $(bindir)coco
 cocver := Jan 02, 2012
 
-# ATG namespace (TBD)
-namesp := Namespace
+# ATG namespace
+namesp := Compyler
 
 # ======
 # Macros
@@ -73,9 +73,10 @@ doc: $(docdir)
 	wget -NP $< $(manual)
 
 # Create compyler compiler
-# compyler: coco # ...
-# 	$(cocexe) -frames $(frmdir) -o $(gendir) -namespace $(namesp) S(srcdir)/grammar/$(namesp).ATG
-# 	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
+compyler:
+	$(cocexe) -frames $(frmdir) -o $(gendir) \
+	-namespace $(namesp) $(srcdir)/grammar/$(namesp).ATG
+	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
 
 # Pull and build Coco/R source if remote is newer
 coco: $(cocdir) | $(frmdir) $(bindir)

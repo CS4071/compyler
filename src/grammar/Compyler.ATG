@@ -1,0 +1,19 @@
+COMPILER Compyler
+
+CHARACTERS
+
+TOKENS
+
+COMMENTS FROM "#" TO '\n'
+
+IGNORE '\t'
+
+PRODUCTIONS
+
+/*------------------------------------------------------------------------*/
+
+Compyler
+=
+  .
+
+END Compyler.
