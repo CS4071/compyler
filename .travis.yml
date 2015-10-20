@@ -4,6 +4,9 @@ script: make compyler
 
 compiler: gcc
 
+install:
+  - export CXX="g++-4.9"
+
 addons:
   apt:
     sources:
