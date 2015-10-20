@@ -73,7 +73,7 @@ doc: $(docdir)
 	wget -NP $< $(manual)
 
 # Create compyler compiler
-compyler:
+compyler: coco
 	$(cocexe) -frames $(frmdir) -o $(gendir) \
 	-namespace $(namesp) $(srcdir)/grammar/$(namesp).ATG
 	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
