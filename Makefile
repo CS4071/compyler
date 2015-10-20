@@ -13,15 +13,15 @@
 # =========
 
 # Directories
-bindir := bin/
-cocdir := coco/
-docdir := doc/
-gendir := gen/
-srcdir := src/
-frmdir := $(srcdir)frames/
+bindir := bin\/
+cocdir := coco\/
+docdir := doc\/
+gendir := gen\/
+srcdir := src\/
+frmdir := $(srcdir)frames\/
 
 # Coco/R URLs
-prefix := http\://ssw.jku.at/Coco/
+prefix := http\://ssw.jku.at/Coco\/
 manual := $(prefix)Doc/UserManual.pdf
 cocurl := $(prefix)CPP/CocoSourcesCPP.zip
 coczip := $(cocdir)$(notdir $(cocurl))
@@ -91,4 +91,5 @@ clean:
 	$(RM) -r $(bindir) $(cocdir) $(docdir) $(frmdir)
 
 # Make parent directories corresponding to dependencies with trailing slashes
-%/:; mkdir -p $@
+%/:
+	mkdir -p $@
