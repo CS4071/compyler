@@ -73,9 +73,9 @@ doc: $(docdir)
 	wget -NP $< $(manual)
 
 # Create compyler compiler
-compyler: coco
+compyler: coco $(gendir)
 	$(cocexe) -frames $(frmdir) -o $(gendir) \
-	-namespace $(namesp) $(srcdir)/grammar/$(namesp).ATG
+	-namespace $(namesp) $(srcdir)grammar/$(namesp).ATG
 	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
 
 # Pull and build Coco/R source if remote is newer
