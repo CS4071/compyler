@@ -13,21 +13,21 @@ const char Preprocessor::kDedent[] = "☚";
 
 Preprocessor::Preprocessor(string filename) {
   infile.open(filename, ios::in);
+  outfile.open(filename + ".pre", ios::out);
   indent_stack.push_back(0);
-  
+
   // Captures whitespace at start of line
   rgx = "( *)([^ ].*)";
 }
 
 Preprocessor::~Preprocessor() {
   infile.close();
+  outfile.close();
 }
 
-bool Preprocessor::getLine(string *line) {
-  *line = "";
+void Preprocessor::preprocess() {
   string current_line;
-  
-  if (getline(infile, current_line)) {
+  while (getline(infile, current_line)) {
     smatch match;
     regex_match(current_line, match, rgx);
     const string indent(match[1]);
@@ -42,36 +42,32 @@ bool Preprocessor::getLine(string *line) {
     // Add INDENT/DEDENT tokens when indentation changes
     if (indent.length() > indent_stack.back() && suffix[0] != '#') {
       indent_stack.push_back(indent.length());
-      *line += string(kIndent) + " ";
+      outfile << string(kIndent) << " ";
     }
     else if (indent.length() < indent_stack.back() && suffix[0] != '#') {
       if (onStack(indent.length(), indent_stack)) {
         while (indent_stack.back() > indent.length()) {
           indent_stack.pop_back();
-          *line += string(kDedent) + " ";
+          outfile << string(kDedent) << " ";
         }
       }
       else {
-        cout << "IndentationError: unindent does not match any outer indentation level\n";
+        cerr << "IndentationError: unindent does not match any outer indentation level\n";
       }
     }
-    
-    *line += suffix;
-    
-    return true;
+
+    outfile << suffix << endl;
   }
-  else if (indent_stack.back() > 0) {
+
+  if (indent_stack.back() > 0) {
     // Unindents at end of file
     while (indent_stack.back() > 0) {
       indent_stack.pop_back();
-      *line += string(kDedent) + " ";
+      outfile << string(kDedent) << " ";
     }
-
-    return true;
   }
-
-  return false;
 }
+
 
 // Returns true if <n> is on the stack, false otherwise.
 // Starts at top of stack, because we expect to find things there first.
@@ -81,20 +77,4 @@ bool Preprocessor::onStack(const int &n, const vector<int> &stack) {
       return true;
   }
   return false;
-}
-
-int main(int argc, char *argv[]) {
-  string filename = argv[1];
-  ofstream outfile;
-  outfile.open(filename + ".pre", ios::out);
-
-  Preprocessor pp(filename);
-  string line;
-
-  while (pp.getLine(&line)) {
-    outfile << line << endl;
-    cout << line << endl;
-  }
-
-  outfile.close();
 }

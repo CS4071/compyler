@@ -1,10 +1,12 @@
 /** Replaces whitespace with INDENT/DEDENT (☛/☚) tokens.
  *  Compile with g++-4.9 -std=c++11
  *
+ *  Takes a *.py file and creates a *.py.pre file where whitespace is replaced
+ *  by INDENT/DEDENT tokens.
+ *
  *  TODO(eginhard):
  *   - handle tabs
  *   - implicit line-joining via (), [], {}, """ """
- *   - integrate into pipeline
  */
 
 #ifndef PREPROCESS_H
@@ -21,8 +23,9 @@ using namespace std;
 class Preprocessor {
   static const char kIndent[];
   static const char kDedent[];
-  
+
   ifstream infile;
+  ofstream outfile;
   regex rgx;
   vector<int> indent_stack;
 
@@ -31,8 +34,8 @@ class Preprocessor {
   Preprocessor(string filename);
   ~Preprocessor();
   // Returns true if there are lines left to process, false otherwise.
-  // The processed line with added indent/dedent tokens is returned via <line>. 
-  bool getLine(string *line);
+  // The processed line with added indent/dedent tokens is returned via <line>.
+  void preprocess();
 };
 
 #endif

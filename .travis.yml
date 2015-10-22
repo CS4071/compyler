@@ -1,6 +1,6 @@
 language: cpp
 
-script: make compyler
+script: make all
 
 compiler: gcc
 

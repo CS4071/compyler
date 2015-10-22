@@ -64,9 +64,9 @@ override CXXFLAGS += $(call ifflag, $(WARNINGS), on, -pedantic -Wall, -w)
 # Recipes
 # =======
 
-.PHONY: all doc coco clean
+.PHONY: all clean coco compyler doc
 
-all: doc coco
+all: compyler doc
 
 # Pull user manual if remote is newer
 doc: $(docdir)
@@ -76,19 +76,19 @@ doc: $(docdir)
 compyler: coco $(gendir)
 	$(cocexe) -frames $(frmdir) -o $(gendir) \
 	-namespace $(namesp) $(srcdir)grammar/$(namesp).ATG
-	$(CXX) -o $(bindir)cpc src/Main.cpp $(gendir)*.cpp
+	$(CXX) $(CXXFLAGS) -o $(bindir)cpc $(srcdir)Main.cpp \
+	$(srcdir)preprocess/*.cpp $(gendir)*.cpp
 
 # Pull and build Coco/R source if remote is newer
-coco: $(cocdir) | $(frmdir) $(bindir)
+coco: $(cocdir) | $(bindir)
 	wget -NP $< $(cocurl)
 	unzip -qud $< $(coczip) *.cpp *.h
-	unzip -qud $(frmdir) $(coczip) *.frame
 	$(LINK.cpp) -o $(cocexe) $<*.cpp
 	@ $(checkversion)
 
 # Remove binary, Coco/R, documentation and frame directories
 clean:
-	$(RM) -r $(bindir) $(cocdir) $(docdir) $(frmdir)
+	$(RM) -r $(bindir) $(cocdir) $(docdir) $(gendir)
 
 # Make parent directories corresponding to dependencies with trailing slashes
 %/:
