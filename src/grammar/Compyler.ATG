@@ -1,8 +1,51 @@
 COMPILER Compyler
 
 CHARACTERS
+  Letter = 'a'..'z' + 'A'..'Z'.
+
+  DecDigit = '0' .. '9'.
+  BinDigit = "01".
+  OctDigit = '0'..'7'.
+  HexDigit = DecDigit + 'a'..'f' + 'A'..'F'.
+  NonZeroDecDigit = DecDigit - '0'.
+
+  ShortSingleStrChar = ANY - '\\' - '\'' - '\n'.
+  ShortDoubleStrChar = ANY - '\\' - '\"' - '\n'.
+  LongStrChar  = ANY - '\\'.
+
 
 TOKENS
+  NEWLINE = '\n'.
+  /* INDENT = '☛' */
+  /* DEDENT = '☚' */
+  INDENT = "¬".
+  DEDENT = '`'.
+  Name = (Letter | '_') { Letter | '_' | DecDigit }.
+
+  String = [('r' | 'R' | 'u' | 'U' | 'b' | 'B' | "br" | "rb")]             // optional prefix
+           ( ('\'' { "\\\'" | "\\\\" | "\\\n" | ShortSingleStrChar } '\'') // short single
+           | ('\"' { "\\\"" | "\\\\" | "\\\n" | ShortDoubleStrChar } '\"') // short double
+           | ("\'\'\'" { "\\\\" | LongStrChar } "\'\'\'")                  // long single
+           | ("\"\"\"" { "\\\\" | LongStrChar } "\"\"\"")                  // long double
+           ).
+
+  Number = ( ( NonZeroDecDigit {DecDigit} | '0' {'0'}) // decimalinteger
+           | ( '0' ('o' | 'O') OctDigit {OctDigit})    // octinteger
+           | ( '0' ('x' | 'X') HexDigit {HexDigit})    // hexinteger
+           | ( '0' ('b' | 'B') BinDigit {BinDigit})    // bininteger
+           | (                                         // float [exponent]
+              ( (DecDigit {DecDigit} '.')
+              | ({DecDigit} '.' DecDigit {DecDigit})
+              )
+              [ (('e' | 'E') ['+' | '-'] DecDigit {DecDigit}) ]
+              [ 'j' | 'J']
+             )
+           | (                                         // bare exponent
+              DecDigit {DecDigit}
+              ('e' | 'E') ['+' | '-'] DecDigit {DecDigit}
+              ['j' | 'J']
+             )
+           ).
 
 COMMENTS FROM "#" TO '\n'
 
@@ -12,8 +55,322 @@ PRODUCTIONS
 
 /*------------------------------------------------------------------------*/
 
-Compyler
-=
-  .
+Compyler (. puts("Compyler"); .)
+= { (NEWLINE | Stmt) }.
+
+Decorator (. puts("Decorator"); .)
+= '@' DottedName [ '(' [ArgList] ')' ] NEWLINE.
+
+Decorators (. puts("Decorators"); .)
+= Decorator {Decorator}.
+
+Decorated (. puts("decorated"); .)
+= Decorators (ClassDef | FuncDef | AsyncFuncDef).
+
+AsyncFuncDef (. puts("asyncfuncdef"); .)
+= "async" FuncDef.
+
+FuncDef (. puts("FuncDef"); .)
+= "def" Name '(' [ParamList] ')' ["->" Test] ':' Suite.
+
+ParamList (. puts("paramList"); .)
+= ( DefParam {',' DefParam}
+  | '*' [Param] [',' {DefParam ','} ["**" Param]]
+  | "**" Param
+  ).
+
+Param (. puts("param"); .)
+= Name [':' Test].
+
+DefParam (. puts("defparam"); .)
+= Param ['=' Test].
+
+LambdaParamList (. puts("LambdaParamList"); .)
+= ( DefName {',' DefName}
+  | '*' [Name] [',' {DefName ','} ["**" Name]]
+  | "**" Name
+  ).
+
+DefName (. puts("defname"); .)
+= Name ['=' Test].
+
+Stmt (. puts("Stmt"); .)
+= (SimpleStmt | CompoundStmt).
+
+SimpleStmt (. puts("SimpleStmt"); .)
+= SmallStmt {';' SmallStmt} NEWLINE.
+
+SmallStmt (. puts("SmallStmt"); .)
+= ( ExprStmt
+  | DelStmt
+  | PassStmt
+  | FlowStmt
+  | ImportStmt
+  | GlobalStmt
+  | NonLocalStmt
+  | AssertStmt
+  ) .
+
+ExprStmt (. puts("ExprStmt"); .)
+= TestListStarExpr ((AugAssign (YieldExpr | TestList))
+                    | {('=' (YieldExpr | TestListStarExpr))}).
+
+TestListStarExpr (. puts("TestListStarExpr"); .)
+= (Test | StarExpr) {',' (Test | StarExpr)}.
+
+AugAssign (. puts("AugAssign"); .)
+= ( "+="
+  | "-="
+  | "*="
+  | "@="
+  | "/="
+  | "%="
+  | "&="
+  | "|="
+  | "^="
+  | "<<="
+  | ">>="
+  | "**="
+  | "//="
+  ).
+
+DelStmt (. puts("DelStmt"); .)
+= "del" ExprList.
+
+PassStmt (. puts("PassStmt"); .)
+= "pass".
+
+FlowStmt (. puts("FlowStmt"); .)
+= ( BreakStmt
+  | ContinueStmt
+  | ReturnStmt
+  | RaiseStmt
+  | YieldStmt
+  ).
+
+BreakStmt (. puts("BreakStmt"); .)
+= "break".
+
+ContinueStmt (. puts("ContinueStmt"); .)
+= "continue".
+
+ReturnStmt (. puts("ReturnStmt"); .)
+= "return" [TestList].
+
+YieldStmt (. puts("YieldStmt"); .)
+= YieldExpr.
+
+RaiseStmt (. puts("RaiseStmt"); .)
+= "raise" [Test ["from" Test]].
+
+ImportStmt (. puts("ImportStmt"); .)
+= ( "import" Module ["as" Name] {',' Module ["as" Name]}
+  | "from" Module "import" ( '(' AsNames ')' | AsNames | '*' )
+  ).
+
+Module (. puts("Module"); .)
+= ( DottedName
+  | '.' {'.'} [Name]
+  ).
+
+AsNames (. puts("asNames"); .)
+= Name ["as" Name] {',' Name ["as" Name]}.
+
+
+DottedName (. puts("DottedName"); .)
+= Name {'.' Name}.
+
+GlobalStmt (. puts("GlobalStmt"); .)
+= "global" Name {',' Name}.
+
+NonLocalStmt (. puts("NonLocalStmt"); .)
+= "nonlocal" Name {',' Name}.
+
+AssertStmt (. puts("AssertStmt"); .)
+= "assert" Test [',' Test].
+
+
+CompoundStmt (. puts("CompoundStmt"); .)
+= ( IfStmt
+  | WhileStmt
+  | ForStmt
+  | TryStmt
+  | WithStmt
+  | FuncDef
+  | ClassDef
+  | Decorated
+  | AsyncStmt
+  ).
+
+AsyncStmt (. puts("AsyncStmt"); .)
+= "async" (FuncDef | WithStmt | ForStmt).
+
+IfStmt (. puts("IfStmt"); .)
+= "if" Test ':' Suite {"elif" Test ':' Suite} ["else" ':' Suite].
+
+WhileStmt (. puts("WhileStmt"); .)
+= "while" Test ':' Suite ["else" ':' Suite].
+
+ForStmt (. puts("ForStmt"); .)
+= "for" ExprList "in" TestList ':' Suite ["else" ':' Suite].
+
+TryStmt (. puts("TryStmt"); .)
+= "try" ':' Suite ( (((ExceptClause ':' Suite) {(ExceptClause ':' Suite)}) ["else" ':' Suite] ["finally" ':' Suite]) | "finally" ':' Suite).
+
+WithStmt (. puts("WithStmt"); .)
+= "with" WithItem {',' WithItem} ':' Suite.
+
+WithItem (. puts("WithItem"); .)
+= Test ["as" Expr].
+
+ExceptClause (. puts("ExceptClause"); .)
+= "except" [Test ["as" Name]].
+
+Suite (. puts("Suite"); .)
+= (SimpleStmt | NEWLINE INDENT Stmt {Stmt} DEDENT).
+
+
+Test (. puts("Test"); .)
+= (OrTest ["if" OrTest "else" Test] | LambDef).
+
+TestNoCond (. puts("TestNoCond"); .)
+= (OrTest | LambDefNoCond).
+
+LambDef (. puts("LambDef"); .)
+= "lambda" [LambdaParamList] ':' Test.
+
+LambDefNoCond (. puts("LambDefNoCond"); .)
+= "lambda" [LambdaParamList] ':' TestNoCond.
+
+OrTest (. puts("OrTest"); .)
+= AndTest {"or" AndTest}.
+
+AndTest (. puts("AndTest"); .)
+= NotTest {"and" NotTest}.
+
+NotTest (. puts("NotTest"); .)
+= ("not" NotTest | Comparison).
+
+Comparison (. puts("Comparison"); .)
+= Expr {CompOp Expr}.
+
+CompOp (. puts("CompOp"); .)
+= ( '<'
+  | '>'
+  | "=="
+  | ">="
+  | "<="
+  | "<>"
+  | "!="
+  | ["not"] "in"
+  | "is" ["not"]
+  ).
+
+StarExpr (. puts("StarExpr"); .)
+= "*" Expr.
+
+Expr (. puts("Expr"); .)
+= XorExpr {'|' XorExpr}.
+
+XorExpr (. puts("XorExpr"); .)
+= AndExpr {'^' AndExpr}.
+
+AndExpr (. puts("AndExpr"); .)
+= ShiftExpr {'&' ShiftExpr}.
+
+ShiftExpr (. puts("ShiftExpr"); .)
+= ArithExpr {("<<"|">>") ArithExpr}.
+
+ArithExpr (. puts("ArithExpr"); .)
+= Term {('+'|'-') Term}.
+
+Term (. puts("Term"); .)
+= Factor {('*'|'@'|'/'|'%'|"//") Factor}.
+
+Factor (. puts("Factor"); .)
+= ( ('+'|'-'|'~') Factor | Power).
+
+Power (. puts("Power"); .)
+= AtomExpr ["**" Factor].
+
+AtomExpr (. puts("AtomExpr"); .)
+= ["await"] Atom {Trailer}.
+
+Atom (. puts("Atom"); .)
+= ( '(' [(YieldExpr | TestListComp)] ')'
+  | '[' [TestListComp] ']'
+  | '{' [DictOrSetMaker] '}'
+  | Name
+  | Number
+  | (String {String})
+  | "..."
+  | "None"
+  | "True"
+  | "False"
+  ).
+
+DictOrSetMaker (. puts("DictOrSetMaker"); .)
+= ( Test ( ':' Test (CompFor | {',' (Test ':' Test | "**" Expr)})
+         | CompFor
+         | {',' (Test | StarExpr)}
+         )
+  | "**" Expr (CompFor | {',' (Test ':' Test | "**" Expr)})
+  ).
+
+
+
+TestListComp (. puts("TestListComp"); .)
+= (Test | StarExpr) (CompFor | {',' (Test | StarExpr)}).
+
+Trailer (. puts("Trailer"); .)
+= ('(' [ArgList] ')' | '[' SubscriptList ']' | '.' Name).
+
+SubscriptList (. puts("SubscriptList"); .)
+= Subscript {',' Subscript}.
+
+Subscript (. puts("Subscript"); .)
+= ( Test [':' [SliceOp]]
+  | ':' [SliceOp]
+  ).
+
+SliceOp (. puts("sliceop"); .)
+= ( ':' [Test]
+  | Test [':' [Test]]
+  ).
+
+
+ExprList (. puts("ExprList"); .)
+= (Expr | StarExpr) {',' Expr | StarExpr} .
+
+TestList (. puts("TestList"); .)
+= Test [','] [TestList].
+
+
+ClassDef (. puts("ClassDef"); .)
+= "class" Name [ '(' [ArgList] ')' ] ':' Suite.
+
+ArgList (. puts("ArgList"); .)
+= Argument [','] [ArgList].
+
+Argument (. puts("Argument"); .)
+= ( Test ('=' Test | [CompFor])
+  | "**" Test
+  | '*' Test
+  ).
+
+CompIter (. puts("CompIter"); .)
+= (CompFor | CompIf).
+
+CompFor (. puts("CompFor"); .)
+= "for" ExprList "in" OrTest [CompIter].
+
+CompIf (. puts("CompIf"); .)
+= "if" TestNoCond [CompIter].
+
+YieldExpr (. puts("YieldExpr"); .)
+= "yield" [YieldArg].
+
+YieldArg (. puts("YieldArg"); .)
+= ("from" Test | TestList).
 
 END Compyler.
