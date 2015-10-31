@@ -33,8 +33,6 @@ class Preprocessor {
  public:
   Preprocessor(string filename);
   ~Preprocessor();
-  // Returns true if there are lines left to process, false otherwise.
-  // The processed line with added indent/dedent tokens is returned via <line>.
   void preprocess();
 };
 
