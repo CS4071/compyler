@@ -8,8 +8,8 @@
 
 using namespace std;
 
-const char Preprocessor::kIndent[] = "☛";
-const char Preprocessor::kDedent[] = "☚";
+const char Preprocessor::kIndent[] = "¬"; // "☛";
+const char Preprocessor::kDedent[] = "`"; // "☚";
 
 Preprocessor::Preprocessor(string filename) {
   infile.open(filename, ios::in);

@@ -1,5 +1,7 @@
 COMPILER Compyler
 
+#define puts(...)
+
 CHARACTERS
   Letter = 'a'..'z' + 'A'..'Z'.
 
@@ -16,8 +18,8 @@ CHARACTERS
 
 TOKENS
   NEWLINE = '\n'.
-  /* INDENT = '☛' */
-  /* DEDENT = '☚' */
+  /* INDENT = '\u261b'. //'☛' */
+  /* DEDENT = '\u261a'. //'☚' */
   INDENT = "¬".
   DEDENT = '`'.
   Name = (Letter | '_') { Letter | '_' | DecDigit }.
