@@ -5,10 +5,11 @@
 #define IRTUPLE_H
 
 #include <string>
+#include <wchar.h>
 
 using namespace std;
 
-using Ident = string;
+using Ident = wstring;
 
 enum class Operator {
   ADD,
@@ -16,10 +17,7 @@ enum class Operator {
   CALL,
   DIV,
   EQU,
-  FADD,
   FDIV,
-  FMUL,
-  FSUB,
   FUNC,
   GT,
   GTE,
@@ -27,6 +25,7 @@ enum class Operator {
   JMPF,
   LABEL,
   LOAD,
+  LSHIFT,
   LT,
   LTE,
   MOD,
@@ -36,10 +35,12 @@ enum class Operator {
   NOT,
   OR,
   RET,
+  RSHIFT,
   STORE,
   SUB,
   XOR,
-  PHI
+  PHI,
+  POW
 };
 
 class IRTuple {
@@ -56,5 +57,10 @@ class IRTuple {
   Ident src2();
   Ident dest();
 };
+
+IRTuple* storeImmed(Ident dest, Ident val);
+IRTuple* label(Ident lab);
+
+wstring show(IRTuple tuple);
 
 #endif

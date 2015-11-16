@@ -77,7 +77,7 @@ compyler: coco $(gendir)
 	$(cocexe) -frames $(frmdir) -o $(gendir) \
 	-namespace $(namesp) $(srcdir)grammar/$(namesp).ATG
 	$(CXX) $(CXXFLAGS) -o $(bindir)cpc $(srcdir)Main.cpp \
-	$(srcdir)preprocess/*.cpp $(gendir)*.cpp
+	$(srcdir)preprocess/*.cpp $(srcdir)ir/*.cpp $(gendir)*.cpp
 
 # Pull and build Coco/R source if remote is newer
 coco: $(cocdir) | $(bindir)
