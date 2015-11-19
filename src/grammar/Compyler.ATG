@@ -11,37 +11,42 @@ COMPILER Compyler
 
 struct Symbol;
 struct Function;
-struct Param;
+struct Parameter;
 typedef vector<IRTuple*> Program;
-typedef vector<Param> Paramlist;
+typedef vector<Parameter> Paramlist;
 typedef vector<wstring> LocList;
 typedef map<wstring, wstring> Scope;
 
-struct Function {
-  public:
-    wstring label;
-    vector<Param> params;
-    wstring type;
-    Program body;
+enum class ArgumentKind {
+  SINGLE,
+  FROM_TO,
+  STEP
 };
 
-struct Param {
-  public:
-    enum Kind{
-      SINGLE_ARG,
-      LIST_ARG,
-      KW_ARG
-    };
+struct Function {
+  wstring label;
+  Paramlist params;
+  wstring type;
+  Program body;
+};
 
-    Kind kind;
-    wstring name;
-    wstring type;
+struct Parameter {
+  enum Kind{
+    SINGLE_ARG,
+    LIST_ARG,
+    KW_ARG
+  };
 
+  Kind kind;
+  wstring name;
+  wstring type;
 };
 
 Program program;
 vector<Scope> scopes;
 vector<Function> functions;
+vector<wstring> loopStart;
+vector<wstring> loopExit;
 
 
 int _label = 0;
@@ -52,6 +57,25 @@ wstring getLabel(){
 int _temp = 0;
 wstring getTemp(){
   return L"T$" + to_wstring(_temp++);
+}
+
+wstring concatStrings(vector<wstring> strings){
+  wstring res = L"";
+
+  for (wstring str : strings){
+    int len = str.size();
+    bool isTriple = (len >= 6)  && (str[0] == str[len-1])
+                                && (str[1] == str[len-2])
+                                && (str[2] == str[len-3])
+                                && (str[0] == str[1])
+                                && (str[1] == str[2]);
+    int from = isTriple ? 3 : 1;
+    int to = isTriple ? len-4 : len-1;
+
+    res += str.substr(from, to-from);
+  }
+
+  return res;
 }
 
 void showProg(){
@@ -128,44 +152,55 @@ Compyler (. puts("Compyler"); .)
                                                   showProg();
                                               .) .
 
-Decorator (. puts("Decorator"); .)
+Decorator<wstring& loc> (. puts("Decorator"); .)
 = '@' DottedName [ '(' [ArgList] ')' ] NEWLINE.
 
-Decorators (. puts("Decorators"); .)
-= Decorator {Decorator}.
+Decorators<LocList& decs> (. wstring loc = getTemp(); puts("Decorators"); .)
+= Decorator<loc>        (. decs.push_back(loc); .)
+  {                     (. loc = getTemp(); .)
+    Decorator<loc>      (. decs.push_back(loc); .)
+  }.
 
-Decorated (. Function func; puts("decorated"); .)
-= Decorators
-  ( ClassDef
-  |                             (. wstring name; Function func; .)
-    FuncDef<name, func>         (. functions.push_back(func); .)
-  |                             (. wstring name; Function async; .)
-    AsyncFuncDef<name, async>   (. functions.push_back(async); .)
-  ).
-
-AsyncFuncDef<wstring& name, Function& func> (. puts("asyncfuncdef"); .)
-= "async" FuncDef<name, func>.
+Decorated<wstring& name> (. vector<wstring> decs; Function func; puts("decorated"); .)
+= Decorators<decs>
+  ( ClassDef<name>
+  | FuncDef<name, func>         (. functions.push_back(func); .)
+  )                             (.
+                                   for (wstring decorator : decs) {
+                                     program.push_back(new IRTuple(Operator::CALL, L"", L"", decorator));
+                                   }
+                                .)
+  .
 
 FuncDef<wstring& name, Function& func> (. puts("FuncDef"); .)
 = "def" Name                   (. name = t->val; func.label = getLabel(); .)
   '(' [ParamList<func.params>]
-  ')' ["->" Test<func.type>
-  ] ':'
+  ')' ["->" Test<func.type> ]
+  ':'
   Suite<func.body>             (. func.body.push_back(new IRTuple(Operator::RET, L"", L"", L"None"));
                                   // functions always return None if no explicit return is seen
                                 .).
 
-ParamList <Paramlist& params> (. puts("paramList"); .)
-= ( DefParam {',' DefParam}
-  | '*' [Param] [',' {DefParam ','} ["**" Param]]
-  | "**" Param
+ParamList <Paramlist& params> (. Parameter parameter; puts("paramList"); .)
+= ( DefParam<parameter>        (. params.push_back(parameter); .)
+    {                          (. parameter = Parameter(); .)
+      ',' DefParam<parameter>  (. params.push_back(parameter); .)
+    }
+  | '*' [Param<parameter>      (. parameter.kind = Parameter::LIST_ARG; params.push_back(parameter); .)
+        ]
+    {                          (. parameter = Parameter(); .)
+      ',' DefParam<parameter>  (. params.push_back(parameter); .)
+    }
+    [',' "**" Param<parameter> (. parameter.kind = Parameter::KW_ARG; params.push_back(parameter); .)
+    ]
+  | "**" Param<parameter>      (. parameter.kind = Parameter::KW_ARG; params.push_back(parameter); .)
   ).
 
-Param (. wstring _ = getTemp(); puts("param"); .)
+Param<Parameter& param> (. wstring _ = getTemp(); puts("param"); .)
 = Name [':' Test<_>].
 
-DefParam (. wstring _ = getTemp(); puts("defparam"); .)
-= Param ['=' Test<_>].
+DefParam<Parameter& param> (. wstring _ = getTemp(); puts("defparam"); .)
+= Param<param> ['=' Test<_>].
 
 LambdaParamList (. puts("LambdaParamList"); .)
 = ( DefName {',' DefName}
@@ -193,38 +228,40 @@ SmallStmt (. puts("SmallStmt"); .)
   | AssertStmt
   ) .
 
-ExprStmt (. wstring _ = getTemp(); wstring loc1 = getTemp(); wstring loc2 = getTemp(); puts("ExprStmt"); .)
-= TestListStarExpr<loc1>
-  ( (AugAssign (YieldExpr | TestList<_>))
-  | {
-      ('=' (YieldExpr
-           | TestListStarExpr<loc2>   (. program.push_back(new IRTuple(Operator::STORE, loc2, L"", loc1)); .)
-           )
-      )
+ExprStmt (. wstring temp; Operator op; LocList left = LocList(); wstring right = getTemp(); puts("ExprStmt"); .)
+= ( { Name                   (. temp = t -> val; .)
+      { Ref<temp,temp> } '='
+                             (. left.push_back(temp); .)
     }
+    ( YieldExpr
+    | Test<right>            (.
+                                for (wstring ref : left) {
+                                  program.push_back(new IRTuple(Operator::STORE, right, L"", ref));
+                                }
+                             .)
+    )
+  | Name                     (. temp = t -> val; .)
+    { Ref<temp,temp> }
+    ( "+="                   (. op = Operator::ADD;    .)
+    | "-="                   (. op = Operator::SUB;    .)
+    | "*="                   (. op = Operator::MUL;    .)
+    | "/="                   (. op = Operator::DIV;    .)
+    | "%="                   (. op = Operator::MOD;    .)
+    | "&="                   (. op = Operator::AND;    .)
+    | "|="                   (. op = Operator::OR;     .)
+    | "^="                   (. op = Operator::XOR;    .)
+    | "<<="                  (. op = Operator::LSHIFT; .)
+    | ">>="                  (. op = Operator::RSHIFT; .)
+    | "**="                  (. op = Operator::POW;    .)
+    | "//="                  (. op = Operator::FDIV;   .)
+    )
+    ( YieldExpr
+    | Test<right>            (. program.push_back(new IRTuple(Operator::STORE, right, L"", temp)); .)
+    )
   ).
 
-TestListStarExpr<wstring& _> (. puts("TestListStarExpr"); .)
-= (Test<_> | StarExpr<_>) {',' (Test<_> | StarExpr<_>)}.
-
-AugAssign (. puts("AugAssign"); .)
-= ( "+="
-  | "-="
-  | "*="
-  | "@="
-  | "/="
-  | "%="
-  | "&="
-  | "|="
-  | "^="
-  | "<<="
-  | ">>="
-  | "**="
-  | "//="
-  ).
-
-DelStmt (. puts("DelStmt"); .)
-= "del" ExprList.
+DelStmt (. wstring _; puts("DelStmt"); .)
+= "del" (Expr<_>) {',' Expr<_>} .
 
 PassStmt (. puts("PassStmt"); .)
 = "pass".
@@ -238,13 +275,34 @@ FlowStmt (. puts("FlowStmt"); .)
   ).
 
 BreakStmt (. puts("BreakStmt"); .)
-= "break".
+= "break"  (.
+              if (loopExit.size() == 0) SemErr(L"Can't break outside of a loop");
+              else program.push_back(new IRTuple(Operator::JMP, L"", L"", loopExit.back()));
+           .) .
 
 ContinueStmt (. puts("ContinueStmt"); .)
-= "continue".
+= "continue" (.
+                if (loopStart.size() == 0) SemErr(L"Can't continue outside of a loop");
+                else program.push_back(new IRTuple(Operator::JMP, L"", L"", loopStart.back()));
+             .) .
 
-ReturnStmt (. wstring loc = getTemp(); puts("ReturnStmt"); .)
-= "return" [TestList<loc>    (. program.push_back(new IRTuple(Operator::RET, L"", L"", loc)); .)
+ReturnStmt (. LocList locs; puts("ReturnStmt"); .)
+= "return" [TestList<locs>  (.
+                              if (locs.size() == 1){
+                                program.push_back(new IRTuple(Operator::RET, L"", L"", locs[0]));
+                              } else {
+                                wstring returnList = getTemp();
+                                program.push_back(new IRTuple(Operator::NEWM, L"", L"", returnList));
+                                program.push_back(new IRTuple(Operator::STORE, to_wstring(locs.size()), L"0", returnList)); // store the lenght
+
+                                int idx = 1;
+                                for (auto loc : locs){
+                                  program.push_back(new IRTuple(Operator::STORE, loc, to_wstring(idx++), returnList));
+                                }
+
+                                program.push_back(new IRTuple(Operator::RET, L"", L"", returnList));
+                              }
+                            .)
   ].
 
 YieldStmt (. puts("YieldStmt"); .)
@@ -276,28 +334,24 @@ GlobalStmt (. puts("GlobalStmt"); .)
 NonLocalStmt (. puts("NonLocalStmt"); .)
 = "nonlocal" Name {',' Name}.
 
-AssertStmt (. puts("AssertStmt"); .) // TODO:
-= "assert".
+AssertStmt (. LocList _; puts("AssertStmt"); .)
+= "assert" TestList<_>.
 
 
-CompoundStmt (. puts("CompoundStmt"); .)
+CompoundStmt (. wstring name; Function func; puts("CompoundStmt"); .)
 = ( IfStmt
   | WhileStmt
   | ForStmt
   | TryStmt
   | WithStmt
-  |                       (. wstring name; Function func; .)
-    FuncDef<name, func>   (.
+  | FuncDef<name, func>   (.
                              functions.push_back(func);
                              program.push_back(new IRTuple(Operator::STORE, func.label, L"", name));
                           .)
-  | ClassDef
-  | Decorated
-  | AsyncStmt
+  | ClassDef<name>
+  | Decorated<name>
   ).
 
-AsyncStmt (. puts("AsyncStmt"); .)
-= "async" ((. wstring name; Function func; .) FuncDef<name, func> | WithStmt | ForStmt).
 
 IfStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring elseLabel = getLabel(); Program body; puts("IfStmt"); .)
 = "if" Test<testLoc> ':'    (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", elseLabel)); .)
@@ -316,17 +370,37 @@ IfStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring el
   ]                         (. program.push_back(label(endLabel)); .).
 
 WhileStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring startLabel = getLabel(); Program body; puts("WhileStmt"); .) //TODO: else
-= "while"                 (. program.push_back(label(startLabel)); .)
+= "while"                 (. program.push_back(label(startLabel)); loopStart.push_back(startLabel); loopExit.push_back(endLabel); .)
   Test<testLoc> ':'       (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", endLabel)); .)
   Suite<body>             (.
                              for (IRTuple* line: body) program.push_back(line);
                              program.push_back(new IRTuple(Operator::JMP, L"", L"", startLabel));
                              program.push_back(label(endLabel));
                            .)
-  ["else" ':' Suite<body>].
+  ["else" ':' Suite<body>] (. loopStart.pop_back(); loopExit.pop_back(); .).
 
-ForStmt (. Program body; wstring _ = getTemp(); puts("ForStmt"); .)
-= "for" ExprList "in" TestList<_> ':' Suite<body> ["else" ':' Suite<body>].
+ForStmt (. Program body; wstring bindName; wstring iter = getTemp(); wstring startLabel = getLabel(); wstring endLabel = getLabel(); wstring len = getTemp(); wstring shouldExit = getTemp(); puts("ForStmt"); .)
+= "for" Name                          (. bindName = t->val; .)
+  "in" Test<iter>                     (.
+                                         wstring idx = getTemp();
+                                         program.push_back(new IRTuple(Operator::LOAD, iter, L"0", len));
+                                         program.push_back(new IRTuple(Operator::STORE, L"0", L"", idx));
+
+                                         loopStart.push_back(startLabel);
+                                         program.push_back(label(startLabel));
+                                         program.push_back(new IRTuple(Operator::LOAD, iter, idx, bindName));
+                                      .)
+  ':' Suite<body>
+                                      (.
+                                         //todo: compare lengths here
+                                         program.push_back(new IRTuple(Operator::ADD, idx, L"1", idx));
+
+                                         program.push_back(new IRTuple(Operator::GT, idx, len, shouldExit));
+                                         program.push_back(new IRTuple(Operator::JMPF, shouldExit, L"", startLabel));
+                                         program.push_back(new IRTuple(Operator::JMP, L"", L"", endLabel));
+                                      .)
+  ["else" ':' Suite<body>
+  ]                                   (. program.push_back(label(endLabel)); .).
 
 TryStmt (. Program body; puts("TryStmt"); .)
 = "try" ':' Suite<body> ( (((ExceptClause ':' Suite<body>) {(ExceptClause ':' Suite<body>)}) ["else" ':' Suite<body>] ["finally" ':' Suite<body>]) | "finally" ':' Suite<body>).
@@ -362,14 +436,8 @@ Test <wstring& location> (. puts("Test"); .)
   | LambDef
   ).
 
-TestNoCond <wstring& location> (. puts("TestNoCond"); .)
-= (OrTest<location> | LambDefNoCond).
-
 LambDef (. puts("LambDef"); .)
 = "lambda" [LambdaParamList] ':' (. wstring _ = getTemp(); .) Test<_>.
-
-LambDefNoCond (. puts("LambDefNoCond"); .)
-= "lambda" [LambdaParamList] ':' (. wstring _ = getTemp(); .) TestNoCond<_>.
 
 OrTest <wstring& location> (. wstring temp=getTemp(); puts("OrTest"); .)
 = AndTest <location>
@@ -403,9 +471,6 @@ CompOp <Operator& op> (. puts("CompOp");     .)
   | ["not"] "in"      // TODO:
   | "is" ["not"]      // TODO:
   ).
-
-StarExpr <wstring& location> (. puts("StarExpr"); .) //TODO:
-= "*" Expr<location>.
 
 Expr <wstring& location> (. wstring temp = getTemp(); puts("Expr"); .)
 = XorExpr<location>
@@ -447,9 +512,10 @@ Term <wstring& location> (. Operator op; wstring temp=getTemp(); puts("Term"); .
 
 Factor <wstring& location>     (. wstring val; wstring temp=getTemp(); puts("Factor"); .)
 = (                            (. int op; .)
-    ('+'                       (. op = 1; .) //plus operator in this context is basically noop
-    |'-'                       (. op = 2; .)
-    |'~')                      (. op = 3; .)
+    ( '+'                      (. op = 1; .) //plus operator in this context is basically noop
+    | '-'                      (. op = 2; .)
+    | '~'
+    )                          (. op = 3; .)
     Factor<val>                (. switch(op){
                                     case 2:
                                       temp = getTemp();
@@ -469,85 +535,136 @@ Factor <wstring& location>     (. wstring val; wstring temp=getTemp(); puts("Fac
 Power <wstring& location> (. wstring loc; puts("Power"); .)
 = AtomExpr<location> ["**" Factor<loc> (. program.push_back(new IRTuple(Operator::POW, location, loc, location)); .) ].
 
-AtomExpr <wstring& location> (. puts("AtomExpr"); .) //TODO: trailers
-= ["await"] Atom<location> {Trailer}.
+AtomExpr <wstring& location> (. puts("AtomExpr"); .)
+= Atom<location> {Trailer<location, location>}.
 
-Atom <wstring& location> (. puts("Atom"); .) //TODO: remaining atoms
-= ( '(' [(YieldExpr | TestListComp)] ')'
-  | '[' [TestListComp] ']'
-  | '{' [DictOrSetMaker] '}'
+Atom <wstring& location> (. LocList _;  puts("Atom"); .)
+= ( '(' [(YieldExpr | List<location>)] ')'
+  | '[' List<location> ']'
+  | '{' [Dict<location> | Set<location>] '}'
   | Name                      (. program.push_back(new IRTuple(Operator::LOAD, t->val, L"", location)); .)
   | Number                    (. program.push_back(storeImmed(location, t->val)); .)
-  | (String {String})
   | "..."                     (. program.push_back(storeImmed(location, L"...")); .)
   | "None"                    (. program.push_back(storeImmed(location, L"None")); .)
   | "True"                    (. program.push_back(storeImmed(location, L"True")); .)
   | "False"                   (. program.push_back(storeImmed(location, L"False")); .)
+  | (                         (. vector<wstring> strs; .)
+      String                  (. strs.push_back(t->val); .)
+    { String                  (. strs.push_back(t->val); .)
+    }
+    )                         (. program.push_back(storeImmed(location, concatStrings(strs))); .)
   ).
 
-DictOrSetMaker (. wstring _ = getTemp(); puts("DictOrSetMaker"); .)
-= ( Test<_> ( ':' Test<_> (CompFor | {',' (Test<_> ':' Test<_> | "**" Expr<_>)})
-         | CompFor
-         | {',' (Test<_> | StarExpr<_>)}
-         )
-  | "**" Expr<_> (CompFor | {',' (Test<_> ':' Test<_> | "**" Expr<_>)})
+List<wstring& location> (. wstring val = getTemp(); int idx = 1; .)
+=                                (.
+                                    location = getTemp();
+                                    program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
+                                 .)
+  Expr<val>                      (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
+  {                              (. val = getTemp(); .)
+    ',' Expr<val>                (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
+  }                              (. program.push_back(new IRTuple(Operator::STORE, to_wstring(idx), L"0", location)); .).
+
+Dict<wstring& location> (. wstring key = getTemp(); wstring val = getTemp(); wstring keyHash = getTemp(); .)
+=                                (.
+                                    location = getTemp();
+                                    program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
+                                 .)
+  Expr<key> ':' Expr<val>        (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
+  { ',' Expr<key> ':' Expr<val>  (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
+  }.
+
+Set<wstring& location> (. wstring val = getTemp(); wstring idx = getTemp(); .)
+=                      (.
+                          location = getTemp();
+                          program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
+                       .)
+  Expr<val>            (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
+  {',' Expr<val>       (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
+  }.
+
+
+
+Trailer<wstring base, wstring& loc> (. puts("Trailer"); .)
+= ( '(' [ ArgList
+        ]
+    ')'
+  | Ref<base, loc>
   ).
 
+Ref<wstring base, wstring& loc>
+= (                                       (. ArgumentKind kind; wstring from = L""; wstring to = L""; wstring step = L""; .)
+    '[' Subscript<kind, from, to, step>   (.
+                                             if (kind == ArgumentKind::SINGLE){
+                                                program.push_back(new IRTuple(Operator::ADD, base, from, loc));
+                                             } else {
+                                                if(from == L""){ // default 'from' address is 0
+                                                  from = getTemp();
+                                                  program.push_back(new IRTuple(Operator::STORE, L"0", L"", from));
+                                                }
+
+                                                if(to == L""){ // default 'to' address is the length of the given list
+                                                  to = getTemp();
+                                                  program.push_back(new IRTuple(Operator::LOAD, base, L"0", to));
+                                                }
+
+                                                if(step == L"") { // default 'step' is 1
+                                                  step = getTemp();
+                                                  program.push_back(new IRTuple(Operator::STORE, L"1", L"", step));
+                                                }
+
+                                                wstring loopStart = getLabel();
+                                                wstring loopEnd = getLabel();
+                                                wstring loopCond = getTemp();
+                                                wstring temp = getTemp();
+
+                                                program.push_back(label(loopStart));
+                                                program.push_back(new IRTuple( Operator::GTE, from, to, loopCond));
+                                                program.push_back(new IRTuple( Operator::JMPF, loopCond, L"", loopEnd));
+                                                program.push_back(new IRTuple( Operator::LOAD, base, from, temp));
+                                                program.push_back(new IRTuple( Operator::STORE, temp, from, loc));
+                                                program.push_back(new IRTuple( Operator::JMP, L"", L"", loopStart));
+                                                program.push_back(label(loopEnd));
+                                             }
+                                          .)
 
 
-TestListComp (. wstring _ = getTemp(); puts("TestListComp"); .)
-= (Test<_> | StarExpr<_>) (CompFor | {',' (Test<_> | StarExpr<_>)}).
-
-Trailer (. puts("Trailer"); .)
-= ('(' [ArgList] ')' | '[' SubscriptList ']' | '.' Name).
-
-SubscriptList (. puts("SubscriptList"); .)
-= Subscript {',' Subscript}.
-
-Subscript (. wstring _ = getTemp(); puts("Subscript"); .)
-= ( Test<_> [':' [SliceOp]]
-  | ':' [SliceOp]
+    ']'
+  | '.' Name                              (. program.push_back(new IRTuple( Operator::LOAD, base, t->val, loc)); .)
   ).
 
-SliceOp (. wstring _ = getTemp(); puts("sliceop"); .)
-= ( ':' [Test<_>]
-  | Test<_> [':' [Test<_>]]
+Subscript<ArgumentKind& kind, wstring& from, wstring& to, wstring& step> (. puts("Subscript"); .)
+= ( Test<from>                     (. kind = ArgumentKind::SINGLE; .)
+    [':'                           (. kind = ArgumentKind::FROM_TO; .)
+      [SliceOp<kind, to, step>]
+    ]
+  | ':'                            (. kind = ArgumentKind::FROM_TO; .)
+    [SliceOp<kind, to, step>]
   ).
 
+SliceOp<ArgumentKind& kind, wstring& to, wstring& step> (. wstring _ = getTemp(); puts("sliceop"); .)
+= ( ':' [Test<step>     (. kind = ArgumentKind::STEP; .)
+        ]
+  | Test<to>
+    [':'
+      [Test<step>       (. kind = ArgumentKind::STEP; .)
+      ]
+    ]
+  ).
 
-ExprList (. wstring _ = getTemp(); puts("ExprList"); .)
-= (Expr<_> | StarExpr<_>) {',' Expr<_> | StarExpr<_>} .
-
-TestList<wstring& loc> (. wstring _ = getTemp(); puts("TestList"); .)
-= Test<loc> [','] [TestList<_>].
-
+TestList<LocList& locs> (. wstring loc = getTemp(); puts("TestList"); .)
+= Test<loc>             (. locs.push_back(loc); .)
+  {',' Test<loc>        (. locs.push_back(loc); .)
+  }.
 
 
-ClassDef (. Program body; puts("ClassDef"); .)
+ClassDef<wstring& name> (. Program body; puts("ClassDef"); .)
 = "class" Name [ '(' [ArgList] ')' ] ':' Suite<body>.
 
-ArgList (. puts("ArgList"); .)
-= Argument [','] [ArgList].
+ArgList (. wstring _ = getTemp(); puts("ArgList"); .)
+= Test<_> ['=' Test<_>] {',' Test<_> ['=' Test<_>]}.
 
-Argument (. wstring _ = getTemp(); puts("Argument"); .)
-= ( Test<_> ('=' Test<_> | [CompFor])
-  | "**" Test<_>
-  | '*' Test<_>
-  ).
-
-CompIter (. puts("CompIter"); .)
-= (CompFor | CompIf).
-
-CompFor (. wstring _ =getTemp(); puts("CompFor"); .)
-= "for" ExprList "in" OrTest<_> [CompIter].
-
-CompIf (. wstring _ = getTemp(); puts("CompIf"); .)
-= "if" TestNoCond<_> [CompIter].
-
-YieldExpr (. puts("YieldExpr"); .)
-= "yield" [YieldArg].
-
-YieldArg (. wstring _ = getTemp(); puts("YieldArg"); .)
-= ("from" Test<_> | TestList<_>).
+YieldExpr (. wstring _; puts("YieldExpr"); .)
+= "yield" Test<_>.
 
 END Compyler.

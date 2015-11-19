@@ -40,7 +40,8 @@ enum class Operator {
   SUB,
   XOR,
   PHI,
-  POW
+  POW,
+  NEWM
 };
 
 class IRTuple {

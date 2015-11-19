@@ -39,7 +39,6 @@ wstring show(IRTuple tuple){
     case (Operator::JMP):    return L"JMP " + tuple.dest();
     case (Operator::JMPF):   return L"JMPF " + tuple.src1() + L" " + tuple.dest();
     case (Operator::LABEL):  return tuple.dest()+ L":";
-    case (Operator::LOAD):   return tuple.dest() + L" <- " + tuple.src1();
     case (Operator::LSHIFT): return tuple.dest() + L" <- " + tuple.src1() + L" << " + tuple.src2();
     case (Operator::LT):     return tuple.dest() + L" <- " + tuple.src1() + L" < " + tuple.src2();
     case (Operator::LTE):    return tuple.dest() + L" <- " + tuple.src1() + L" <= " + tuple.src2();
@@ -50,10 +49,12 @@ wstring show(IRTuple tuple){
     case (Operator::OR):     return tuple.dest() + L" <- " + tuple.src1() + L" | " + tuple.src2();
     case (Operator::RET):    return L"RET " + tuple.dest();
     case (Operator::RSHIFT): return tuple.dest() + L" <- " + tuple.src1() + L" >> " + tuple.src2();
-    case (Operator::STORE):  return tuple.dest() + L" <- " + tuple.src1();
     case (Operator::SUB):    return tuple.dest() + L" <- " + tuple.src1() + L" - " + tuple.src2();
     case (Operator::XOR):    return tuple.dest() + L" <- " + tuple.src1() + L" ^ " + tuple.src2();
     case (Operator::POW):    return tuple.dest() + L" <- " + tuple.src1() + L" ** " + tuple.src2();
+    case (Operator::LOAD):   return tuple.dest() + L" <- " + tuple.src1() + L" [" + tuple.src2() + L"]";
+    case (Operator::STORE):  return tuple.dest() + L" <- " + tuple.src1() + L" [" + tuple.src2() + L"]";
+    case (Operator::NEWM):   return tuple.dest() + L" <- NEWM";
     default:                 return tuple.dest() + L" <- " + tuple.src1() + L" `op` " + tuple.src2();
   }
 }
