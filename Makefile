@@ -39,7 +39,7 @@ namesp := Compyler
 ifflag = $(if $(findstring $(2), $(1)), $(3), $(4))
 
 # Inspect output of coco to determine version
-define checkversion =
+define checkversion
 	version="$$($(cocexe) | head -1 | awk -F '[()]' '{print $$2}')"; \
 	if [ "$${version}" != "$(cocver)" ]; then \
 		echo ''; \
@@ -81,10 +81,16 @@ compyler: coco $(gendir)
 
 # Pull and build Coco/R source if remote is newer
 coco: $(cocdir) | $(bindir)
-	wget -NP $< $(cocurl)
-	unzip -qud $< $(coczip) *.cpp *.h
-	$(LINK.cpp) -o $(cocexe) $<*.cpp
-	@ $(checkversion)
+	@ wget -q --tries=10 --timeout=20 --spider http://google.com; \
+	if [ $$? -eq 0 ]; then \
+		echo "Online, retrieving COCO/R."; \
+		wget -NP $< $(cocurl); \
+		unzip -qud $< $(coczip) *.cpp *.h; \
+		$(LINK.cpp) -o $(cocexe) $<*.cpp; \
+		$(checkversion); \
+	else \
+		echo "Offline, not retrieving COCO/R."; \
+	fi
 
 # Remove binary, Coco/R, documentation and frame directories
 clean:
