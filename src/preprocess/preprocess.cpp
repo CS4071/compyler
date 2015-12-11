@@ -10,6 +10,7 @@ using namespace std;
 
 const char Preprocessor::kIndent[] = "¬"; // "☛";
 const char Preprocessor::kDedent[] = "`"; // "☚";
+const char Preprocessor::kNewline[] = "¶";
 
 Preprocessor::Preprocessor(string filename) {
   infile.open(filename, ios::in);
@@ -56,7 +57,20 @@ void Preprocessor::preprocess() {
       }
     }
 
-    outfile << suffix << endl;
+    bool is_empty = true;
+    for (char c : suffix) {
+      if (c == '#')
+        break;
+      else
+        is_empty = false;
+    }
+
+    if (!is_empty)
+      outfile << suffix;
+    outfile << endl;
+    // Newline tokens are inserted on next line, so that comments can run until '\n'.
+    if (!is_empty)
+      outfile << string(kNewline) << " ";
   }
 
   if (indent_stack.back() > 0) {

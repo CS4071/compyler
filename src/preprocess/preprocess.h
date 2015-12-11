@@ -23,6 +23,7 @@ using namespace std;
 class Preprocessor {
   static const char kIndent[];
   static const char kDedent[];
+  static const char kNewline[];
 
   ifstream infile;
   ofstream outfile;
