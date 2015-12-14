@@ -80,9 +80,7 @@ CHARACTERS
 
 
 TOKENS
-  NEWLINE = '\n'.
-  /* INDENT = '\u261b'. //'☛' */
-  /* DEDENT = '\u261a'. //'☚' */
+  NEWLINE = "¶".
   INDENT = "¬".
   DEDENT = '`'.
   Name = (Letter | '_') { Letter | '_' | DecDigit }.
@@ -114,7 +112,7 @@ TOKENS
 
 COMMENTS FROM "#" TO '\n'
 
-IGNORE '\t'
+IGNORE '\t' + '\n'
 
 PRODUCTIONS
 
