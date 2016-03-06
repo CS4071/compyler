@@ -51,6 +51,9 @@ class IRTuple {
  public:
   IRTuple(Operator op, Ident src1, Ident src2, Ident dest);
 
+  bool isLeader();
+  bool isTerminator();
+
   // Getters
   Operator op();
   Ident src1();

@@ -139,6 +139,8 @@ void Preprocessor::preprocess() {
     indent_stack_.pop_back();
     outfile_ << string(kDedent) << " ";
   }
+
+  outfile_ << endl;
 }
 
 

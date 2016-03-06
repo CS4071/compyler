@@ -10,11 +10,28 @@ IRTuple::IRTuple(Operator op, Ident src1, Ident src2, Ident dest) :
     src2_(src2),
     dest_(dest) {}
 
-// Getters
-Operator IRTuple::op() { return op_; }
-Ident IRTuple::src1() { return src1_; }
-Ident IRTuple::src2() { return src2_; }
-Ident IRTuple::dest() { return dest_; }
+// Returns true if the tuple is a leader (of a basic block).
+bool IRTuple::isLeader() {
+  switch(op_) {
+  case Operator::FUNC:
+  case Operator::LABEL:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// Returns true if the tuple is a terminator (of a basic block).
+bool IRTuple::isTerminator() {
+  switch(op_) {
+  case Operator::JMP:
+  case Operator::JMPF:
+  case Operator::RET:
+    return true;
+  default:
+    return false;
+  }
+}
 
 // Util
 IRTuple* storeImmed(Ident dest, Ident val){
@@ -24,6 +41,13 @@ IRTuple* storeImmed(Ident dest, Ident val){
 IRTuple* label(Ident lab){
   return new IRTuple(Operator::LABEL, L"", L"", lab);
 }
+
+// Getters
+Operator IRTuple::op() { return op_; }
+Ident IRTuple::src1() { return src1_; }
+Ident IRTuple::src2() { return src2_; }
+Ident IRTuple::dest() { return dest_; }
+
 
 wstring show(IRTuple tuple){
   switch (tuple.op()){
