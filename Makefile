@@ -20,6 +20,7 @@ gendir := gen\/
 srcdir := src\/
 frmdir := $(srcdir)frames\/
 tstdir := $(srcdir)test\/
+tmpdir := tmp\/
 
 TEST_TARGET = compyler_test
 
@@ -76,7 +77,9 @@ override CXXFLAGS += $(call ifflag, $(WARNINGS), on, -pedantic -Wall, -w)
 all: compyler doc
 
 test: compyler $(TEST_TARGET)
+	mkdir -p $(tmpdir)
 	./$(bindir)$(TEST_TARGET) --log_level=test_suite
+	rm -rf $(tmpdir)
 
 $(TEST_TARGET):
 	$(CXX) $(CXXFLAGS) -o $(bindir)/$@ $(SRCS) $(tstdir)*.cpp $(LIBS_TEST)
