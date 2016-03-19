@@ -39,6 +39,7 @@ class Preprocessor {
   string setLastChars(const char &c, const string &last_chars);
  public:
   // Initializes the preprocessor for the given Python source file.
+  Preprocessor(string filename_in, string filename_out);
   Preprocessor(string filename);
   ~Preprocessor();
 
