@@ -19,6 +19,13 @@ docdir := doc\/
 gendir := gen\/
 srcdir := src\/
 frmdir := $(srcdir)frames\/
+tstdir := $(srcdir)test\/
+
+TEST_TARGET = compyler_test
+
+SRCS = $(srcdir)preprocess/*.cpp $(srcdir)ir/*.cpp $(gendir)*.cpp
+
+LIBS_TEST = -lboost_unit_test_framework
 
 # Coco/R URLs
 prefix := http\://ssw.jku.at/Coco\/
@@ -68,6 +75,12 @@ override CXXFLAGS += $(call ifflag, $(WARNINGS), on, -pedantic -Wall, -w)
 
 all: compyler doc
 
+test: compyler $(TEST_TARGET)
+	./$(bindir)$(TEST_TARGET) --log_level=test_suite
+
+$(TEST_TARGET):
+	$(CXX) $(CXXFLAGS) -o $(bindir)/$@ $(SRCS) $(tstdir)*.cpp $(LIBS_TEST)
+
 # Pull user manual if remote is newer
 doc: $(docdir)
 	wget -NP $< $(manual)
@@ -76,8 +89,7 @@ doc: $(docdir)
 compyler: coco $(gendir)
 	$(cocexe) -frames $(frmdir) -o $(gendir) \
 	-namespace $(namesp) $(srcdir)grammar/$(namesp).ATG
-	$(CXX) $(CXXFLAGS) -o $(bindir)cpc $(srcdir)Main.cpp \
-	$(srcdir)preprocess/*.cpp $(srcdir)ir/*.cpp $(gendir)*.cpp
+	$(CXX) $(CXXFLAGS) -o $(bindir)cpc $(SRCS) $(srcdir)Main.cpp
 
 # Pull and build Coco/R source if remote is newer
 coco: $(cocdir) | $(bindir)
