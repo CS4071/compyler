@@ -23,8 +23,8 @@ typedef vector<unique_ptr<Symbol>> Scope;
 struct Symbol {
   public:
     wstring name;
-    wstring type;
-    int id;
+    wstring id;
+    Symbol(wstring n, wstring i) : name(n), id(i) {}
 };
 
 struct Function {
@@ -52,6 +52,7 @@ struct Param {
 Program program;
 vector<unique_ptr<Scope>> scopes;
 vector<Function> functions;
+map<wstring,int> symbolIds;
 
 
 int _label = 0;
@@ -73,6 +74,10 @@ Symbol* lookup(const wstring& name) {
   }
 
   return nullptr;
+}
+
+wstring getId(wstring name) {
+    return name + L"$" + to_wstring(symbolIds[name]);
 }
 
 void showProg(){
@@ -175,7 +180,7 @@ FuncDef<wstring& name, Function& func> (. puts("FuncDef"); .)
 = "def"                         (. scopes.push_back(unique_ptr<Scope>(new Scope)); .)
   Name                          (. name = t->val; func.label = getLabel(); .)
   '(' [ParamList<func.params>]
-  ')' ["->" Test<func.type>
+  ')' ["->" Test<func.type,func.type>
   ] ':'
   Suite<func.body>              (.
                                    scopes.pop_back();
@@ -194,13 +199,13 @@ Param                           (.
                                    wstring _ = getTemp();
                                    puts("param");
                                  .)
-= Name [':' Test<_>].
+= Name [':' Test<_,_>].
 
 DefParam                        (.
                                    wstring _ = getTemp();
                                    puts("defparam");
                                  .)
-= Param ['=' Test<_>].
+= Param ['=' Test<_,_>].
 
 LambdaParamList                 (. puts("LambdaParamList"); .)
 = ( DefName {',' DefName}
@@ -212,7 +217,7 @@ DefName                         (.
                                    wstring _ = getTemp();
                                    puts("defname");
                                  .)
-= Name ['=' Test<_>].
+= Name ['=' Test<_,_>].
 
 Stmt                            (. puts("Stmt"); .)
 = (SimpleStmt | CompoundStmt).
@@ -232,24 +237,34 @@ SmallStmt                       (. puts("SmallStmt"); .)
   ) .
 
 ExprStmt                        (.
-                                   wstring _ = getTemp();
-                                   wstring loc1 = getTemp();
-                                   wstring loc2 = getTemp();
+                                   wstring _ = L"";
+                                   wstring name;
+                                   wstring loc = getTemp();
                                    puts("ExprStmt");
                                  .)
-= TestListStarExpr<loc1>
-  ( (AugAssign (YieldExpr | TestList<_>))
+= TestListStarExpr<name,_>
+  ( (AugAssign (YieldExpr | TestList<_,_>))
   | {
       ('=' (YieldExpr
-           | TestListStarExpr<loc2>   (. program.push_back(new IRTuple(
-                                             Operator::STORE, loc2, L"", loc1)); .)
+           | TestListStarExpr<_,loc>
+                                (.
+                                   
+                                   Symbol *symbol = lookup(name);
+                                   if (symbol == nullptr) {
+                                     symbolIds[name] += 1;
+                                     symbol = new Symbol(name, getId(name));
+                                     scopes.back()->push_back(unique_ptr<Symbol>(symbol));
+                                   }
+                                   program.push_back(new IRTuple(
+                                       Operator::STORE, loc, L"", symbol->id));
+                                 .)
            )
       )
     }
   ).
 
-TestListStarExpr<wstring& _>    (. puts("TestListStarExpr"); .)
-= (Test<_> | StarExpr<_>) {',' (Test<_> | StarExpr<_>)}.
+TestListStarExpr<wstring& name, wstring _>    (. puts("TestListStarExpr"); .)
+= (Test<name,_> | StarExpr<name,_>) {',' (Test<_,_> | StarExpr<_,_>)}.
 
 AugAssign                       (. puts("AugAssign"); .)
 = ( "+="
@@ -291,7 +306,7 @@ ReturnStmt                      (.
                                    wstring loc = getTemp();
                                    puts("ReturnStmt");
                                  .)
-= "return" [TestList<loc>       (. program.push_back(new IRTuple(
+= "return" [TestList<loc,loc>       (. program.push_back(new IRTuple(
                                        Operator::RET, L"", L"", loc)); .)
   ].
 
@@ -302,7 +317,7 @@ RaiseStmt                       (.
                                    wstring _ = getTemp();
                                    puts("RaiseStmt");
                                  .)
-= "raise" [Test<_> ["from" Test<_>]].
+= "raise" [Test<_,_> ["from" Test<_,_>]].
 
 ImportStmt                      (. puts("ImportStmt"); .)
 = ( "import" Module ["as" Name] {',' Module ["as" Name]}
@@ -352,14 +367,14 @@ AsyncStmt                       (. puts("AsyncStmt"); .)
 = "async" (                     (. wstring name; Function func; .)
   FuncDef<name, func> | WithStmt | ForStmt).
 
-IfStmt                          (.
+IfStmt                          (. wstring _;
                                    wstring testLoc = getTemp();
                                    wstring endLabel = getLabel();
                                    wstring elseLabel = getLabel();
                                    Program body;
                                    puts("IfStmt");
                                  .)
-= "if" Test<testLoc> ':'        (. program.push_back(new IRTuple(
+= "if" Test<_,testLoc> ':'      (. program.push_back(new IRTuple(
                                        Operator::JMPF, testLoc, L"", elseLabel)); .)
   Suite<body>                   (.
                                    for (IRTuple* line: body) program.push_back(line);
@@ -367,7 +382,7 @@ IfStmt                          (.
                                        Operator::JMP, L"", L"", endLabel));
                                    program.push_back(label(elseLabel));
                                  .)
-  {"elif" Test<testLoc> ':'     (.
+  {"elif" Test<_,testLoc> ':'   (.
                                    elseLabel = getLabel();
                                    program.push_back(new IRTuple(
                                        Operator::JMPF, testLoc, L"", elseLabel));
@@ -381,7 +396,7 @@ IfStmt                          (.
   } ["else" ':' Suite<body>     (. for (IRTuple* line: body) program.push_back(line); .)
   ]                             (. program.push_back(label(endLabel)); .).
 
-WhileStmt                       (.
+WhileStmt                       (. wstring _;
                                    wstring testLoc = getTemp();
                                    wstring endLabel = getLabel();
                                    wstring startLabel = getLabel();
@@ -389,7 +404,7 @@ WhileStmt                       (.
                                    puts("WhileStmt");
                                  .) //TODO: else
 = "while"                       (. program.push_back(label(startLabel)); .)
-  Test<testLoc> ':'             (. program.push_back(new IRTuple(
+  Test<_,testLoc> ':'           (. program.push_back(new IRTuple(
                                        Operator::JMPF, testLoc, L"", endLabel)); .)
   Suite<body>                   (.
                                    for (IRTuple* line: body) program.push_back(line);
@@ -405,7 +420,7 @@ ForStmt                         (.
                                    puts("ForStmt");
                                  .)
 = "for"
-  ExprList "in" TestList<_> ':'
+  ExprList "in" TestList<_,_> ':'
   Suite<body>
   ["else" ':'
   Suite<body>
@@ -428,10 +443,10 @@ WithStmt                        (. Program body; puts("WithStmt"); .)
   Suite<body>.
 
 WithItem                        (. wstring _ = getTemp(); puts("WithItem"); .)
-= Test<_> ["as" Expr<_>].
+= Test<_,_> ["as" Expr<_,_>].
 
 ExceptClause                    (. wstring _ = getTemp(); puts("ExceptClause"); .)
-= "except" [Test<_> ["as" Name]].
+= "except" [Test<_,_> ["as" Name]].
 
 Suite <Program& body>           (. puts("Suite"); .)
 =                               (.
@@ -446,11 +461,11 @@ Suite <Program& body>           (. puts("Suite"); .)
                                  .).
 
 
-Test <wstring& location>        (. puts("Test"); .)
-= (OrTest <location>
+Test <wstring& name, wstring location>        (. puts("Test"); .)
+= (OrTest <name,location>
     ["if"                       (. wstring temp1 = getTemp(); wstring temp2 = getTemp(); .)
-      OrTest<temp1> "else"
-      Test<temp2>
+      OrTest<temp1,temp1> "else"
+      Test<temp2,temp2>
                                 (.
                                    wstring label = getLabel();
                                    program.push_back(new IRTuple(
@@ -466,51 +481,57 @@ Test <wstring& location>        (. puts("Test"); .)
   | LambDef
   ).
 
-TestNoCond <wstring& location>  (. puts("TestNoCond"); .)
-= (OrTest<location> | LambDefNoCond).
+TestNoCond <wstring& name, wstring location>  (. puts("TestNoCond"); .)
+= (OrTest<name,location> | LambDefNoCond).
 
 LambDef                         (. puts("LambDef"); .)
 = "lambda"
   [LambdaParamList] ':'         (. wstring _ = getTemp(); .)
-  Test<_>.
+  Test<_,_>.
 
 LambDefNoCond                   (. puts("LambDefNoCond"); .)
 = "lambda"
   [LambdaParamList] ':'         (. wstring _ = getTemp(); .)
-  TestNoCond<_>.
+  TestNoCond<_,_>.
 
-OrTest <wstring& location>      (. wstring temp=getTemp(); puts("OrTest"); .)
-= AndTest <location>
-  {"or" AndTest<temp>           (. program.push_back(new IRTuple(
+OrTest <wstring& name, wstring location>
+                                (. wstring temp=getTemp();
+                                   wstring _;
+                                   puts("OrTest"); .)
+= AndTest <name,location>
+  {"or" AndTest<_,temp>         (. program.push_back(new IRTuple(
                                        Operator::OR, location, temp, location)); .)
   }.
 
-AndTest <wstring& location>     (.
-                                   wstring temp=getTemp();
+AndTest <wstring& name, wstring location>
+                                (. wstring temp=getTemp();
+                                   wstring _;
                                    puts("AndTest");
                                  .)
-= NotTest <location>
-  {"and" NotTest<temp>          (. program.push_back(new IRTuple(
+= NotTest <name,location>
+  {"and" NotTest<_,temp>        (. program.push_back(new IRTuple(
                                        Operator::AND, location, temp, location)); .)
   }.
 
-NotTest <wstring& location>     (.
-                                   wstring temp=getTemp();
+NotTest <wstring& name, wstring location>
+                                (. wstring temp=getTemp();
+                                   wstring _;
                                    puts("NotTest");
                                  .)
-= ( "not" NotTest<temp>         (. program.push_back(new IRTuple(
+= ( "not" NotTest<_,temp>       (. program.push_back(new IRTuple(
                                        Operator::NOT, temp, L"", location)); .)
-  | Comparison<location>
+  | Comparison<name,location>
   ).
 
-Comparison <wstring& location>  (.
-                                   Operator op;
+Comparison <wstring& name, wstring location>
+                                (. Operator op;
                                    wstring temp = getTemp();
+                                   wstring _;
                                    puts("Comparison");
                                  .)
-= Expr<location>
+= Expr<name,location>
   { CompOp<op>
-    Expr<temp>                  (. program.push_back(new IRTuple(
+    Expr<_,temp>                (. program.push_back(new IRTuple(
                                        op, location, temp, location)); .)
   }.
 
@@ -526,84 +547,92 @@ CompOp <Operator& op>           (. puts("CompOp");     .)
   | "is" ["not"]                // TODO:
   ).
 
-StarExpr <wstring& location>    (. puts("StarExpr"); .) //TODO:
-= "*" Expr<location>.
+StarExpr <wstring& name, wstring location>
+                                (. puts("StarExpr"); .) //TODO:
+= "*" Expr<name,location>.
 
-Expr <wstring& location>        (.
-                                   wstring temp = getTemp();
+Expr <wstring& name, wstring location>
+                                (. wstring temp = getTemp();
+                                   wstring _;
                                    puts("Expr");
                                  .)
-= XorExpr<location>
-  {'|' XorExpr<temp>            (. program.push_back(new IRTuple(
+= XorExpr<name,location>
+  {'|' XorExpr<_,temp>          (. program.push_back(new IRTuple(
                                        Operator::OR, location, temp, location)); .)
   }.
 
-XorExpr <wstring& location>     (.
-                                   wstring temp=getTemp();
+XorExpr <wstring& name, wstring location>
+                                (. wstring temp=getTemp();
+                                   wstring _;
                                    puts("XorExpr");
                                  .)
-= AndExpr<location>
-  {'^' AndExpr<temp>            (. program.push_back(new IRTuple(
+= AndExpr<name,location>
+  {'^' AndExpr<_,temp>          (. program.push_back(new IRTuple(
                                        Operator::XOR, location, temp, location)); .)
   }.
 
-AndExpr <wstring& location>     (.
-                                   wstring temp=getTemp();
+AndExpr <wstring& name, wstring location>
+                                (. wstring temp=getTemp();
+                                   wstring _;
                                    puts("AndExpr");
                                  .)
-= ShiftExpr<location>
-  {'&' ShiftExpr<temp>          (. program.push_back(new IRTuple(
+= ShiftExpr<name,location>
+  {'&' ShiftExpr<_,temp>        (. program.push_back(new IRTuple(
                                        Operator::AND, location, temp, location)); .)
   }.
 
-ShiftExpr <wstring& location>   (.
-                                   Operator op;
+ShiftExpr <wstring& name, wstring location>
+                                (. Operator op;
                                    wstring temp=getTemp();
+                                   wstring _;
                                    puts("ShiftExpr");
                                  .)
-= ArithExpr<location>
+= ArithExpr<name,location>
   { ("<<"                       (. op = Operator::LSHIFT; .)
     |">>"                       (. op = Operator::RSHIFT; .)
-    ) ArithExpr<temp>           (. program.push_back(new IRTuple(
+    ) ArithExpr<_,temp>         (. program.push_back(new IRTuple(
                                        op, location, temp, location)); .)
   }.
 
-ArithExpr <wstring& location>   (.
-                                   Operator op;
+ArithExpr <wstring& name, wstring location>
+                                (. Operator op;
                                    wstring temp=getTemp();
+                                   wstring _;
                                    puts("ArithExpr");
                                  .)
-= Term<location>
+= Term<name,location>
   { ('+'                        (. op = Operator::ADD; .)
     |'-'                        (. op = Operator::SUB; .)
-    ) Term<temp>                (. program.push_back(new IRTuple(
+    ) Term<_,temp>              (. program.push_back(new IRTuple(
                                        op, location, temp, location)); .)
   }.
 
-Term <wstring& location>        (.
-                                   Operator op;
+Term <wstring& name, wstring location>
+                                (. Operator op;
                                    wstring temp=getTemp();
+                                   wstring _;
                                    puts("Term");
                                  .)
-= Factor<location>
+= Factor<name,location>
   { ('*'                        (. op = Operator::MUL; .)
     |'/'                        (. op = Operator::FDIV; .)
     |'%'                        (. op = Operator::MOD; .)
     |"//"                       (. op = Operator::DIV; .)
-    ) Factor<temp>              (. program.push_back(new IRTuple(
+    ) Factor<_,temp>            (. program.push_back(new IRTuple(
                                        op, location, temp, location)); .)
   }.
 
-Factor <wstring& location>      (.
-                                   wstring val;
+Factor <wstring& name, wstring location>
+                                (. wstring val;
                                    wstring temp=getTemp();
+                                   wstring _;
                                    puts("Factor");
                                  .)
 = (                             (. int op; .)
     ('+'                        (. op = 1; .) //plus operator in this context is basically noop
     |'-'                        (. op = 2; .)
     |'~')                       (. op = 3; .)
-    Factor<val>                 (. switch(op){
+    Factor<_,val>               (. switch(op){
                                      case 2:
                                        temp = getTemp();
                                        program.push_back(storeImmed(temp, L"0"));
@@ -618,24 +647,35 @@ Factor <wstring& location>      (.
                                        location = val;
                                    }
                                  .)
-  | Power<location>
+  | Power<name,location>
   ).
 
-Power <wstring& location>       (. wstring loc; puts("Power"); .)
-= AtomExpr<location>
-  ["**" Factor<loc>             (. program.push_back(new IRTuple(
+Power <wstring& name, wstring location>
+                                (. wstring loc;
+                                   wstring _;
+                                   puts("Power"); .)
+= AtomExpr<name,location>
+  ["**" Factor<_,loc>           (. program.push_back(new IRTuple(
                                        Operator::POW, location, loc, location)); .)
   ].
 
-AtomExpr <wstring& location>    (. puts("AtomExpr"); .) //TODO: trailers
-= ["await"] Atom<location> {Trailer}.
+AtomExpr <wstring& name, wstring location>    (. puts("AtomExpr"); .) //TODO: trailers
+= ["await"] Atom<name,location> {Trailer}.
 
-Atom <wstring& location>        (. puts("Atom"); .) //TODO: remaining atoms
+Atom <wstring& name, wstring location>        (. puts("Atom"); .) //TODO: remaining atoms
 = ( '(' [(YieldExpr | TestListComp)] ')'
   | '[' [TestListComp] ']'
   | '{' [DictOrSetMaker] '}'
-  | Name                        (. program.push_back(new IRTuple(
-                                       Operator::LOAD, t->val, L"", location)); .)
+  | Name                        (. name = t->val;
+                                   if (location != L"") {
+                                     Symbol *symbol = lookup(name);
+                                     if (symbol == nullptr) {
+                                       std::wcerr << "Undefined variable: " << name << "\n";
+                                     }
+                                     program.push_back(new IRTuple(
+                                         Operator::LOAD, getId(name), L"", location));
+                                   }
+                                 .)
   | Number                      (. program.push_back(storeImmed(location, t->val)); .)
   | (String {String})
   | "..."                       (. program.push_back(storeImmed(location, L"...")); .)
@@ -648,11 +688,11 @@ DictOrSetMaker                  (.
                                    wstring _ = getTemp();
                                    puts("DictOrSetMaker");
                                  .)
-= ( Test<_> ( ':' Test<_> (CompFor | {',' (Test<_> ':' Test<_> | "**" Expr<_>)})
+= ( Test<_,_> ( ':' Test<_,_> (CompFor | {',' (Test<_,_> ':' Test<_,_> | "**" Expr<_,_>)})
          | CompFor
-         | {',' (Test<_> | StarExpr<_>)}
+         | {',' (Test<_,_> | StarExpr<_,_>)}
          )
-  | "**" Expr<_> (CompFor | {',' (Test<_> ':' Test<_> | "**" Expr<_>)})
+  | "**" Expr<_,_> (CompFor | {',' (Test<_,_> ':' Test<_,_> | "**" Expr<_,_>)})
   ).
 
 
@@ -661,7 +701,7 @@ TestListComp                    (.
                                    wstring _ = getTemp();
                                    puts("TestListComp");
                                  .)
-= (Test<_> | StarExpr<_>) (CompFor | {',' (Test<_> | StarExpr<_>)}).
+= (Test<_,_> | StarExpr<_,_>) (CompFor | {',' (Test<_,_> | StarExpr<_,_>)}).
 
 Trailer                         (. puts("Trailer"); .)
 = ('(' [ArgList] ')' | '[' SubscriptList ']' | '.' Name).
@@ -673,7 +713,7 @@ Subscript                       (.
                                    wstring _ = getTemp();
                                    puts("Subscript");
                                  .)
-= ( Test<_> [':' [SliceOp]]
+= ( Test<_,_> [':' [SliceOp]]
   | ':' [SliceOp]
   ).
 
@@ -681,8 +721,8 @@ SliceOp                         (.
                                    wstring _ = getTemp();
                                    puts("sliceop");
                                  .)
-= ( ':' [Test<_>]
-  | Test<_> [':' [Test<_>]]
+= ( ':' [Test<_,_>]
+  | Test<_,_> [':' [Test<_,_>]]
   ).
 
 
@@ -690,13 +730,13 @@ ExprList                        (.
                                    wstring _ = getTemp();
                                    puts("ExprList");
                                  .)
-= (Expr<_> | StarExpr<_>) {',' Expr<_> | StarExpr<_>} .
+= (Expr<_,_> | StarExpr<_,_>) {',' Expr<_,_> | StarExpr<_,_>} .
 
-TestList<wstring& loc>          (.
+TestList<wstring& name, wstring loc>          (.
                                    wstring _ = getTemp();
                                    puts("TestList");
                                  .)
-= Test<loc> [','] [TestList<_>].
+= Test<name,loc> [','] [TestList<_,_>].
 
 
 
@@ -716,9 +756,9 @@ Argument                        (.
                                    wstring _ = getTemp();
                                    puts("Argument");
                                  .)
-= ( Test<_> ('=' Test<_> | [CompFor])
-  | "**" Test<_>
-  | '*' Test<_>
+= ( Test<_,_> ('=' Test<_,_> | [CompFor])
+  | "**" Test<_,_>
+  | '*' Test<_,_>
   ).
 
 CompIter                        (. puts("CompIter"); .)
@@ -728,13 +768,13 @@ CompFor                         (.
                                    wstring _ = getTemp();
                                    puts("CompFor");
                                  .)
-= "for" ExprList "in" OrTest<_> [CompIter].
+= "for" ExprList "in" OrTest<_,_> [CompIter].
 
 CompIf                          (.
                                    wstring _ = getTemp();
                                    puts("CompIf");
                                  .)
-= "if" TestNoCond<_> [CompIter].
+= "if" TestNoCond<_,_> [CompIter].
 
 YieldExpr                       (. puts("YieldExpr"); .)
 = "yield" [YieldArg].
@@ -743,6 +783,6 @@ YieldArg                        (.
                                    wstring _ = getTemp();
                                    puts("YieldArg");
                                  .)
-= ("from" Test<_> | TestList<_>).
+= ("from" Test<_,_> | TestList<_,_>).
 
 END Compyler.
