@@ -41,6 +41,8 @@ Parser.h Specification
 
 -->namespace_open
 
+using Program = vector<IRTuple*>;
+
 class Errors {
 public:
 	int count;			// number of errors detected
@@ -80,6 +82,7 @@ public:
 	Parser(Scanner *scanner);
 	~Parser();
 	void SemErr(const wchar_t* msg);
+        Program getProgram();
 
 -->productionsheader
 	void Parse();
@@ -104,6 +107,8 @@ Parser.cpp Specification
 
 
 -->namespace_open
+
+using Program = vector<IRTuple*>;
 
 void Parser::SynErr(int n) {
 	if (errDist >= minErrDist) errors->SynErr(la->line, la->col, n);
@@ -157,6 +162,10 @@ bool Parser::WeakSeparator(int n, int syFol, int repFol) {
 		}
 		return StartOf(syFol);
 	}
+}
+
+Program Parser::getProgram() {
+        return program;
 }
 
 -->productions

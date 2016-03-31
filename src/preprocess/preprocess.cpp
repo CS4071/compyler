@@ -23,15 +23,18 @@ map<string, string> Preprocessor::nesting_map_ = {
   {"\"\"\"", "\"\"\""}
 };
 
-Preprocessor::Preprocessor(string filename) {
-  infile_.open(filename, ios::in);
-  outfile_.open(filename + ".pre", ios::out);
+Preprocessor::Preprocessor(string filename_in, string filename_out) {
+  infile_.open(filename_in, ios::in);
+  outfile_.open(filename_out, ios::out);
   indent_stack_.push_back(0);
   nesting_stack_.push_back("");
 
   // Captures whitespace at start of line
   rgx_ = "( *)([^ ].*)";
 }
+
+Preprocessor::Preprocessor(string filename) :
+  Preprocessor(filename, filename + ".pre") {}
 
 Preprocessor::~Preprocessor() {
   infile_.close();
@@ -139,6 +142,8 @@ void Preprocessor::preprocess() {
     indent_stack_.pop_back();
     outfile_ << string(kDedent) << " ";
   }
+
+  outfile_ << endl;
 }
 
 

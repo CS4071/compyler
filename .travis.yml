@@ -1,11 +1,15 @@
 language: cpp
 
-script: make all
+script: make test
 
 compiler: gcc
 
 install:
   - export CXX="g++-4.9"
+
+before_script:
+  - sudo apt-get update -qq
+  - sudo apt-get install libboost-test-dev
 
 addons:
   apt:

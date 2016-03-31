@@ -1,11 +1,7 @@
-/** Replaces whitespace with INDENT/DEDENT (☛/☚) tokens.
- *  Compile with g++-4.9 -std=c++11
+/** Replaces whitespace with INDENT/DEDENT/NEWLINE tokens.
  *
  *  Takes a *.py file and creates a *.py.pre file where whitespace is replaced
  *  by INDENT/DEDENT/NEWLINE tokens.
- *
- *  TODO(eginhard):
- *   - handle tabs
  */
 
 #ifndef PREPROCESS_H
@@ -43,6 +39,7 @@ class Preprocessor {
   string setLastChars(const char &c, const string &last_chars);
  public:
   // Initializes the preprocessor for the given Python source file.
+  Preprocessor(string filename_in, string filename_out);
   Preprocessor(string filename);
   ~Preprocessor();
 
