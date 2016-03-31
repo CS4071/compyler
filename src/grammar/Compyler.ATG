@@ -87,6 +87,7 @@ wstring concatStrings(vector<wstring> strings){
   }
 
   return res;
+}
 
 Symbol* lookup(const wstring& name) {
   // Start looking on top of the scope stack.
@@ -269,6 +270,7 @@ ExprStmt                        (.
                                    LocList left = LocList();
                                    wstring right = getTemp();
                                    wstring _ = L"";
+                                   wstring temp = getTemp();
                                    wstring name;
                                    wstring loc = getTemp();
                                    puts("ExprStmt");
@@ -314,7 +316,7 @@ ExprStmt                        (.
   ).
 
 DelStmt (. wstring _; puts("DelStmt"); .)
-= "del" (Expr<_>) {',' Expr<_>} .
+= "del" (Expr<_, _>) {',' Expr<_, _>} .
 
 PassStmt                        (. puts("PassStmt"); .)
 = "pass".
@@ -390,8 +392,8 @@ GlobalStmt                      (. puts("GlobalStmt"); .)
 NonLocalStmt                    (. puts("NonLocalStmt"); .)
 = "nonlocal" Name {',' Name}.
 
-AssertStmt (. LocList _; puts("AssertStmt"); .)
-= "assert" TestList<_>.
+AssertStmt (. wstring _; LocList __; puts("AssertStmt"); .)
+= "assert" TestList<_, __>.
 
 
 CompoundStmt (. wstring name; Function func; puts("CompoundStmt"); .)
@@ -409,14 +411,14 @@ CompoundStmt (. wstring name; Function func; puts("CompoundStmt"); .)
   ).
 
 
-IfStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring elseLabel = getLabel(); Program body; puts("IfStmt"); .)
-= "if" Test<testLoc> ':'    (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", elseLabel)); .)
+IfStmt (. wstring _; wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring elseLabel = getLabel(); Program body; puts("IfStmt"); .)
+= "if" Test<_, testLoc> ':' (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", elseLabel)); .)
   Suite<body>               (.
                                for (IRTuple* line: body) program.push_back(line);
                                program.push_back(new IRTuple(Operator::JMP, L"", L"", endLabel));
                                program.push_back(label(elseLabel));
                              .)
-  {"elif" Test<testLoc> ':' (. elseLabel = getLabel(); program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", elseLabel)); .)
+  {"elif" Test<_, testLoc> ':' (. elseLabel = getLabel(); program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", elseLabel)); .)
   Suite<body>               (.
                                for (IRTuple* line: body) program.push_back(line);
                                program.push_back(new IRTuple(Operator::JMPF, L"", L"", endLabel));
@@ -425,9 +427,9 @@ IfStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring el
   } ["else" ':' Suite<body> (. for (IRTuple* line: body) program.push_back(line); .)
   ]                         (. program.push_back(label(endLabel)); .).
 
-WhileStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring startLabel = getLabel(); Program body; puts("WhileStmt"); .) //TODO: else
+WhileStmt (. wstring _; wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring startLabel = getLabel(); Program body; puts("WhileStmt"); .) //TODO: else
 = "while"                 (. program.push_back(label(startLabel)); loopStart.push_back(startLabel); loopExit.push_back(endLabel); .)
-  Test<testLoc> ':'       (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", endLabel)); .)
+  Test<_, testLoc> ':'       (. program.push_back(new IRTuple(Operator::JMPF, testLoc, L"", endLabel)); .)
   Suite<body>             (.
                              for (IRTuple* line: body) program.push_back(line);
                              program.push_back(new IRTuple(Operator::JMP, L"", L"", startLabel));
@@ -435,9 +437,9 @@ WhileStmt (. wstring testLoc = getTemp(); wstring endLabel = getLabel(); wstring
                            .)
   ["else" ':' Suite<body>] (. loopStart.pop_back(); loopExit.pop_back(); .).
 
-ForStmt (. Program body; wstring bindName; wstring iter = getTemp(); wstring startLabel = getLabel(); wstring endLabel = getLabel(); wstring len = getTemp(); wstring shouldExit = getTemp(); puts("ForStmt"); .)
+ForStmt (. wstring _; Program body; wstring bindName; wstring iter = getTemp(); wstring startLabel = getLabel(); wstring endLabel = getLabel(); wstring len = getTemp(); wstring shouldExit = getTemp(); puts("ForStmt"); .)
 = "for" Name                          (. bindName = t->val; .)
-  "in" Test<iter>                     (.
+  "in" Test<_, iter>                  (.
                                          wstring idx = getTemp();
                                          program.push_back(new IRTuple(Operator::LOAD, iter, L"0", len));
                                          program.push_back(new IRTuple(Operator::STORE, L"0", L"", idx));
@@ -465,10 +467,10 @@ WithStmt (. Program body; puts("WithStmt"); .)
 = "with" WithItem {',' WithItem} ':' Suite<body>.
 
 WithItem (. wstring _ = getTemp(); puts("WithItem"); .)
-= Test<_> ["as" Expr<_>].
+= Test<_, _> ["as" Expr<_, _>].
 
 ExceptClause (. wstring _ = getTemp(); puts("ExceptClause"); .)
-= "except" [Test<_> ["as" Name]].
+= "except" [Test<_, _> ["as" Name]].
 
 Suite <Program& body> (. puts("Suite"); .)
 =                                       (. Program temp = program; program = Program(); .)
@@ -701,27 +703,27 @@ List<wstring& location> (. wstring val = getTemp(); int idx = 1; .)
                                     location = getTemp();
                                     program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
                                  .)
-  Expr<val>                      (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
+  Expr<val, val>                 (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
   {                              (. val = getTemp(); .)
-    ',' Expr<val>                (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
+    ',' Expr<val, val>           (. program.push_back(new IRTuple(Operator::STORE, val, to_wstring(idx++), location)); .)
   }                              (. program.push_back(new IRTuple(Operator::STORE, to_wstring(idx), L"0", location)); .).
 
-Dict<wstring& location> (. wstring key = getTemp(); wstring val = getTemp(); wstring keyHash = getTemp(); .)
-=                                (.
-                                    location = getTemp();
-                                    program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
-                                 .)
-  Expr<key> ':' Expr<val>        (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
-  { ',' Expr<key> ':' Expr<val>  (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
+Dict<wstring& location> (. wstring _; wstring key = getTemp(); wstring val = getTemp(); wstring keyHash = getTemp(); .)
+=                                      (.
+                                          location = getTemp();
+                                          program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
+                                       .)
+  Expr<_, key> ':' Expr<_, val>        (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
+  { ',' Expr<_, key> ':' Expr<_, val>  (. program.push_back(new IRTuple(Operator::STORE, val, key, keyHash)); .)
   }.
 
-Set<wstring& location> (. wstring val = getTemp(); wstring idx = getTemp(); .)
+Set<wstring& location> (. wstring _; wstring val = getTemp(); wstring idx = getTemp(); .)
 =                      (.
                           location = getTemp();
                           program.push_back(new IRTuple(Operator::NEWM, L"", L"", location));
                        .)
-  Expr<val>            (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
-  {',' Expr<val>       (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
+  Expr<_, val>         (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
+  {',' Expr<_, val>    (. program.push_back(new IRTuple(Operator::STORE, val, val, location)); .)
   }.
 
 
@@ -774,7 +776,7 @@ Ref<wstring base, wstring& loc>
   | '.' Name                              (. program.push_back(new IRTuple( Operator::LOAD, base, t->val, loc)); .)
   ).
 
-Subscript<ArgumentKind& kind, wstring& from, wstring& to, wstring& step> (. wstring _; puts"Subscript"); .)
+Subscript<ArgumentKind& kind, wstring& from, wstring& to, wstring& step> (. wstring _; puts("Subscript"); .)
 = ( Test<_, from>                     (. kind = ArgumentKind::SINGLE; .)
     [':'                              (. kind = ArgumentKind::FROM_TO; .)
       [SliceOp<kind, to, step>]
@@ -793,9 +795,10 @@ SliceOp<ArgumentKind& kind, wstring& to, wstring& step> (. wstring _ = getTemp()
     ]
   ).
 
-TestList<LocList& locs> (. wstring loc = getTemp(); puts("TestList"); .)
-= Test<loc>             (. locs.push_back(loc); .)
-  {',' Test<loc>        (. locs.push_back(loc); .)
+TestList<wstring& name, LocList& locs> (. wstring loc = getTemp(); puts("TestList"); .)
+= Test<name, loc>             (. locs.push_back(loc); .)
+  {                           (. loc = getTemp(); .)
+    ',' Test<name, loc>       (. locs.push_back(loc); .)
   }.
 
 
@@ -809,9 +812,9 @@ ClassDef<wstring& name>         (.
   .
 
 ArgList (. wstring _ = getTemp(); puts("ArgList"); .)
-= Test<_> ['=' Test<_>] {',' Test<_> ['=' Test<_>]}.
+= Test<_,_> ['=' Test<_,_>] {',' Test<_,_> ['=' Test<_,_>]}.
 
 YieldExpr (. wstring _; puts("YieldExpr"); .)
-= "yield" Test<_>.
+= "yield" Test<_,_>.
 
 END Compyler.
